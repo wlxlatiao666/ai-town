@@ -366,6 +366,8 @@ interface CreateChatCompletionResponse {
     message?: {
       role: 'system' | 'user' | 'assistant';
       content: string;
+      // Optional function call returned by the model
+      function_call?: { name: string; arguments: string };
     };
     finish_reason?: string;
   }[];
@@ -376,6 +378,122 @@ interface CreateChatCompletionResponse {
 
     total_tokens: number;
   };
+}
+
+/**
+ * chatCompletionWithFunctions: run a chat completion that may request function calls.
+ * - messages: initial messages
+ * - tools: array of FunctionTool (name, description, parameters, handler)
+ * - maxFunctionCalls: how many function-calling iterations to allow
+ * Returns final assistant message content and optional function call trace.
+ */
+export async function chatCompletionWithFunctions(
+  opts: Omit<CreateChatCompletionRequest, 'model'> & {
+    model?: CreateChatCompletionRequest['model'];
+    toolset?: FunctionTool[];
+    maxFunctionCalls?: number;
+  },
+) {
+  const tools = opts.toolset ?? [];
+  const maxCalls = opts.maxFunctionCalls ?? 3;
+
+  // Map tools by name for quick lookup
+  const toolMap: Record<string, FunctionTool> = {};
+  for (const t of tools) toolMap[t.name] = t;
+
+  const messages: LLMMessage[] = opts.messages ?? [];
+
+  for (let i = 0; i <= maxCalls; i++) {
+    // Call the API directly so we can inspect function_call fields.
+    const config = getLLMConfig();
+    const body = { ...opts, messages, model: opts.model ?? config.chatModel } as any;
+    // Translate our tools into the API "functions" shape if present
+    if (tools.length > 0) {
+      body.functions = tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+      }));
+      body.function_call = 'auto';
+    }
+
+    const resp = await fetch(config.url + '/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...AuthHeaders(),
+      },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+      throw new Error(`chatCompletionWithFunctions failed: ${await resp.text()}`);
+    }
+    const json = (await resp.json()) as CreateChatCompletionResponse;
+    const choice = json.choices[0];
+    const message = choice.message!;
+
+    // If model requested a function call
+    if (message.function_call) {
+      const fnName = message.function_call.name;
+      const argsRaw = message.function_call.arguments;
+      let parsedArgs: any = null;
+      try {
+        parsedArgs = JSON.parse(argsRaw);
+      } catch (e) {
+        // fallback: try to extract json substring
+        const m = argsRaw.match(/\{[\s\S]*\}/);
+        if (m) {
+          try {
+            parsedArgs = JSON.parse(m[0]);
+          } catch (e2) {
+            parsedArgs = argsRaw;
+          }
+        } else {
+          parsedArgs = argsRaw;
+        }
+      }
+
+      const tool = toolMap[fnName];
+      if (!tool) {
+        // Append assistant's function call message and stop
+        messages.push({
+          role: 'assistant',
+          content: null,
+          function_call: { name: fnName, arguments: argsRaw },
+        });
+        return {
+          content: null as any,
+          function_call: { name: fnName, arguments: parsedArgs },
+        } as any;
+      }
+
+      // Execute handler if available
+      let result: string;
+      if (tool.handler) {
+        const out = await tool.handler(parsedArgs);
+        result = typeof out === 'string' ? out : JSON.stringify(out);
+      } else {
+        // No handler: return the raw arguments as the function result
+        result = typeof parsedArgs === 'string' ? parsedArgs : JSON.stringify(parsedArgs);
+      }
+
+      // Append the assistant function_call message and a function message with the result,
+      // then loop to ask the model for final answer.
+      messages.push({
+        role: 'assistant',
+        content: null,
+        function_call: { name: fnName, arguments: argsRaw },
+      });
+      messages.push({ role: 'function', name: fnName, content: result });
+      // continue loop to call LLM again
+      continue;
+    }
+
+    // No function call requested; return final assistant content
+    return { content: message.content ?? '', retries: 0, ms: 0 };
+  }
+
+  throw new Error('Exceeded max function call iterations');
 }
 
 interface CreateEmbeddingResponse {
@@ -583,6 +701,20 @@ export interface CreateChatCompletionRequest {
    */
   response_format?: { type: 'text' | 'json_object' };
 }
+
+// Function-calling support types
+export type FunctionTool = {
+  name: string;
+  description?: string;
+  parameters: object;
+  // handler receives the parsed arguments and should return a string result.
+  handler?: (args: any) => Promise<string> | string;
+};
+
+export type ToolCall = {
+  name: string;
+  arguments: any;
+};
 
 // Checks whether a suffix of s1 is a prefix of s2. For example,
 // ('Hello', 'Kira:') -> false
