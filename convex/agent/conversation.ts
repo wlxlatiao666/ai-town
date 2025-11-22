@@ -1,7 +1,8 @@
 import { v } from 'convex/values';
 import { Id } from '../_generated/dataModel';
 import { ActionCtx, internalQuery } from '../_generated/server';
-import { LLMMessage, chatCompletion } from '../util/llm';
+import { LLMMessage, chatCompletion, chatCompletionWithFunctions } from '../util/llm';
+import { makeToolset } from '../aiTown/llmTools';
 import * as memory from './memory';
 import { api, internal } from '../_generated/api';
 import * as embeddingsCache from './embeddingsCache';
@@ -55,7 +56,8 @@ export async function startConversationMessage(
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   prompt.push(lastPrompt);
 
-  const { content } = await chatCompletion({
+  const tools = makeToolset(ctx);
+  const { content } = await chatCompletionWithFunctions({
     messages: [
       {
         role: 'system',
@@ -64,7 +66,8 @@ export async function startConversationMessage(
     ],
     max_tokens: 300,
     stop: stopWords(otherPlayer.name, player.name),
-  });
+    toolset: tools,
+  } as any);
   return trimContentPrefx(content, lastPrompt);
 }
 
@@ -125,11 +128,13 @@ export async function continueConversationMessage(
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   llmMessages.push({ role: 'user', content: lastPrompt });
 
-  const { content } = await chatCompletion({
+  const tools = makeToolset(ctx);
+  const { content } = await chatCompletionWithFunctions({
     messages: llmMessages,
     max_tokens: 300,
     stop: stopWords(otherPlayer.name, player.name),
-  });
+    toolset: tools,
+  } as any);
   return trimContentPrefx(content, lastPrompt);
 }
 
@@ -174,11 +179,13 @@ export async function leaveConversationMessage(
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   llmMessages.push({ role: 'user', content: lastPrompt });
 
-  const { content } = await chatCompletion({
+  const tools = makeToolset(ctx);
+  const { content } = await chatCompletionWithFunctions({
     messages: llmMessages,
     max_tokens: 300,
     stop: stopWords(otherPlayer.name, player.name),
-  });
+    toolset: tools,
+  } as any);
   return trimContentPrefx(content, lastPrompt);
 }
 
