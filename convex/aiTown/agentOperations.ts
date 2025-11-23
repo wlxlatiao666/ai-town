@@ -69,13 +69,15 @@ export const agentGenerateMessage = internalAction({
       default:
         assertNever(args.type);
     }
-    const text = await completionFn(
+    const result = await completionFn(
       ctx,
       args.worldId,
       args.conversationId as GameId<'conversations'>,
       args.playerId as GameId<'players'>,
       args.otherPlayerId as GameId<'players'>,
     );
+    const text = typeof result === 'string' ? result : result.text;
+    const queuedActions = result && typeof result === 'object' ? result.actions : undefined;
 
     await ctx.runMutation(internal.aiTown.agent.agentSendMessage, {
       worldId: args.worldId,
@@ -86,7 +88,8 @@ export const agentGenerateMessage = internalAction({
       messageUuid: args.messageUuid,
       leaveConversation: args.type === 'leave',
       operationId: args.operationId,
-    });
+      queuedActions,
+    } as any);
   },
 });
 

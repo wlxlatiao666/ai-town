@@ -314,6 +314,7 @@ export const agentSendMessage = internalMutation({
     messageUuid: v.string(),
     leaveConversation: v.boolean(),
     operationId: v.string(),
+    queuedActions: v.optional(v.array(v.any())),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert('messages', {
@@ -329,6 +330,7 @@ export const agentSendMessage = internalMutation({
       timestamp: Date.now(),
       leaveConversation: args.leaveConversation,
       operationId: args.operationId,
+      queuedActions: args.queuedActions,
     });
   },
 });

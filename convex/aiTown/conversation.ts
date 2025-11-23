@@ -21,6 +21,8 @@ export class Conversation {
     messageUuid: string;
     since: number;
   };
+  // Actions queued by LLM during the conversation; executed when conversation ends.
+  queuedActions?: any[];
   lastMessage?: {
     author: GameId<'players'>;
     timestamp: number;
@@ -44,6 +46,8 @@ export class Conversation {
     };
     this.numMessages = numMessages;
     this.participants = parseMap(participants, ConversationMembership, (m) => m.playerId);
+    // serialized may include queuedActions (optional)
+    this.queuedActions = (serialized as any).queuedActions ?? undefined;
   }
 
   tick(game: Game, now: number) {
@@ -199,6 +203,45 @@ export class Conversation {
         agent.toRemember = this.id;
       }
     }
+    // Execute queued actions now that the conversation is ending.
+    if (this.queuedActions && this.queuedActions.length > 0) {
+      for (const action of this.queuedActions) {
+        try {
+          switch (action.type) {
+            case 'move': {
+              const agent = [...game.world.agents.values()].find((a) => a.id === action.agentId);
+              if (!agent) break;
+              const player = game.world.players.get(agent.playerId as any);
+              if (!player) break;
+              // destination: {x,y}
+              movePlayer(game, now, player, action.destination);
+              break;
+            }
+            case 'activity': {
+              const agent = [...game.world.agents.values()].find((a) => a.id === action.agentId);
+              if (!agent) break;
+              const player = game.world.players.get(agent.playerId as any);
+              if (!player) break;
+              player.activity = action.activity;
+              break;
+            }
+            case 'invite': {
+              const agent = [...game.world.agents.values()].find((a) => a.id === action.agentId);
+              if (!agent) break;
+              const player = game.world.players.get(agent.playerId as any);
+              const invitee = game.world.players.get(action.inviteeId as any);
+              if (!player || !invitee) break;
+              Conversation.start(game, now, player, invitee);
+              break;
+            }
+            default:
+              console.warn('Unknown queued action type', action);
+          }
+        } catch (e) {
+          console.error('Error executing queued action', e);
+        }
+      }
+    }
     game.world.conversations.delete(this.id);
   }
 
@@ -220,6 +263,7 @@ export class Conversation {
       lastMessage,
       numMessages,
       participants: serializeMap(this.participants),
+      queuedActions: this.queuedActions,
     };
   }
 }
@@ -243,6 +287,7 @@ export const serializedConversation = {
   ),
   numMessages: v.number(),
   participants: v.array(v.object(serializedConversationMembership)),
+  queuedActions: v.optional(v.array(v.any())),
 };
 export type SerializedConversation = ObjectType<typeof serializedConversation>;
 

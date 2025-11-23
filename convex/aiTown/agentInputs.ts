@@ -81,6 +81,7 @@ export const agentInputs = {
       timestamp: v.number(),
       operationId: v.string(),
       leaveConversation: v.boolean(),
+      queuedActions: v.optional(v.array(v.any())),
     },
     handler: (game, now, args) => {
       const agentId = parseGameId('agents', args.agentId);
@@ -112,6 +113,24 @@ export const agentInputs = {
       });
       if (args.leaveConversation) {
         conversation.leave(game, now, player);
+      }
+      // Append any queued actions the LLM collected during generation to the conversation.
+      if (args.queuedActions && Array.isArray(args.queuedActions)) {
+        if (!conversation.queuedActions) {
+          conversation.queuedActions = [];
+        }
+        for (const a of args.queuedActions) {
+          try {
+            // Only accept actions that target this agent for safety.
+            if (!a || a.agentId !== args.agentId) {
+              console.debug('Skipping queued action for different agent', a);
+              continue;
+            }
+            conversation.queuedActions.push(a);
+          } catch (err) {
+            console.error('Error appending queued action', err, a);
+          }
+        }
       }
       return null;
     },
