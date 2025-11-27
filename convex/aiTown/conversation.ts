@@ -214,6 +214,10 @@ export class Conversation {
               const player = game.world.players.get(agent.playerId as any);
               if (!player) break;
               // destination: {x,y}
+              console.log(
+                `Queued move -> agent ${agent.id} (player ${player.id}) to`,
+                action.destination,
+              );
               movePlayer(game, now, player, action.destination);
               break;
             }
@@ -222,6 +226,10 @@ export class Conversation {
               if (!agent) break;
               const player = game.world.players.get(agent.playerId as any);
               if (!player) break;
+              console.log(
+                `Queued activity -> agent ${agent.id} (player ${player.id}):`,
+                action.activity,
+              );
               player.activity = action.activity;
               break;
             }
@@ -231,6 +239,9 @@ export class Conversation {
               const player = game.world.players.get(agent.playerId as any);
               const invitee = game.world.players.get(action.inviteeId as any);
               if (!player || !invitee) break;
+              console.log(
+                `Queued invite -> agent ${agent.id} (player ${player.id}) invites ${invitee.id}`,
+              );
               Conversation.start(game, now, player, invitee);
               break;
             }

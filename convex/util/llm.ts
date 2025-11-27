@@ -387,113 +387,117 @@ interface CreateChatCompletionResponse {
  * - maxFunctionCalls: how many function-calling iterations to allow
  * Returns final assistant message content and optional function call trace.
  */
+// Overload for non-streaming
 export async function chatCompletionWithFunctions(
-  opts: Omit<CreateChatCompletionRequest, 'model'> & {
+  body: Omit<CreateChatCompletionRequest, 'model'> & {
     model?: CreateChatCompletionRequest['model'];
     toolset?: FunctionTool[];
-    maxFunctionCalls?: number;
+  } & {
+    stream?: false | null | undefined;
+  },
+): Promise<{ content: string; retries: number; ms: number }>;
+// Overload for streaming
+export async function chatCompletionWithFunctions(
+  body: Omit<CreateChatCompletionRequest, 'model'> & {
+    model?: CreateChatCompletionRequest['model'];
+    toolset?: FunctionTool[];
+  } & {
+    stream?: true;
+  },
+): Promise<{ content: ChatCompletionContent; retries: number; ms: number }>;
+export async function chatCompletionWithFunctions(
+  body: Omit<CreateChatCompletionRequest, 'model'> & {
+    model?: CreateChatCompletionRequest['model'];
+    toolset?: FunctionTool[];
   },
 ) {
-  const tools = opts.toolset ?? [];
-  const maxCalls = opts.maxFunctionCalls ?? 3;
-
+  const tools = body.toolset ?? [];
   // Map tools by name for quick lookup
   const toolMap: Record<string, FunctionTool> = {};
   for (const t of tools) toolMap[t.name] = t;
 
-  const messages: LLMMessage[] = opts.messages ?? [];
+  const config = getLLMConfig();
+  body.model = body.model ?? config.chatModel;
+  const stopWords = body.stop ? (typeof body.stop === 'string' ? [body.stop] : body.stop) : [];
+  if (config.stopWords) stopWords.push(...config.stopWords);
+  console.log(body);
+  if (tools.length > 0) {
+    (body as any).functions = tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    }));
+    (body as any).function_call = 'auto';
+  }
 
-  for (let i = 0; i <= maxCalls; i++) {
-    // Call the API directly so we can inspect function_call fields.
-    const config = getLLMConfig();
-    const body = { ...opts, messages, model: opts.model ?? config.chatModel } as any;
-    // Translate our tools into the API "functions" shape if present
-    if (tools.length > 0) {
-      body.functions = tools.map((t) => ({
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters,
-      }));
-      body.function_call = 'auto';
-    }
-
-    const resp = await fetch(config.url + '/v1/chat/completions', {
+  const {
+    result: content,
+    retries,
+    ms,
+  } = await retryWithBackoff(async () => {
+    const result = await fetch(config.url + '/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...AuthHeaders(),
       },
+
       body: JSON.stringify(body),
     });
-    if (!resp.ok) {
-      throw new Error(`chatCompletionWithFunctions failed: ${await resp.text()}`);
+    if (!result.ok) {
+      const error = await result.text();
+      console.error({ error });
+      if (result.status === 404 && config.provider === 'ollama') {
+        await tryPullOllama(body.model!, error);
+      }
+      throw {
+        retry: result.status === 429 || result.status >= 500,
+        error: new Error(`Chat completion failed with code ${result.status}: ${error}`),
+      };
     }
-    const json = (await resp.json()) as CreateChatCompletionResponse;
-    const choice = json.choices[0];
-    const message = choice.message!;
-
-    // If model requested a function call
-    if (message.function_call) {
-      const fnName = message.function_call.name;
-      const argsRaw = message.function_call.arguments;
-      let parsedArgs: any = null;
-      try {
-        parsedArgs = JSON.parse(argsRaw);
-      } catch (e) {
-        // fallback: try to extract json substring
-        const m = argsRaw.match(/\{[\s\S]*\}/);
-        if (m) {
-          try {
-            parsedArgs = JSON.parse(m[0]);
-          } catch (e2) {
+    if (body.stream) {
+      return new ChatCompletionContent(result.body!, stopWords);
+    } else {
+      const json = (await result.json()) as CreateChatCompletionResponse;
+      const choice = json.choices[0];
+      const message = choice.message!;
+      if (message.function_call) {
+        const fnName = message.function_call.name;
+        const argsRaw = message.function_call.arguments;
+        let parsedArgs: any = null;
+        try {
+          parsedArgs = JSON.parse(argsRaw);
+        } catch {
+          const m = argsRaw.match(/\{[\s\S]*\}/);
+          if (m) {
+            try {
+              parsedArgs = JSON.parse(m[0]);
+            } catch {
+              parsedArgs = argsRaw;
+            }
+          } else {
             parsedArgs = argsRaw;
           }
-        } else {
-          parsedArgs = argsRaw;
+        }
+        const tool = toolMap[fnName];
+        if (tool && tool.handler) {
+          await tool.handler(parsedArgs); // todo: 添加容错
         }
       }
-
-      const tool = toolMap[fnName];
-      if (!tool) {
-        // Append assistant's function call message and stop
-        messages.push({
-          role: 'assistant',
-          content: null,
-          function_call: { name: fnName, arguments: argsRaw },
-        });
-        return {
-          content: null as any,
-          function_call: { name: fnName, arguments: parsedArgs },
-        } as any;
+      const content = message.content;
+      if (content === undefined) {
+        throw new Error('Unexpected result from OpenAI: ' + JSON.stringify(json));
       }
-
-      // Execute handler if available
-      let result: string;
-      if (tool.handler) {
-        const out = await tool.handler(parsedArgs);
-        result = typeof out === 'string' ? out : JSON.stringify(out);
-      } else {
-        // No handler: return the raw arguments as the function result
-        result = typeof parsedArgs === 'string' ? parsedArgs : JSON.stringify(parsedArgs);
-      }
-
-      // Append the assistant function_call message and a function message with the result,
-      // then loop to ask the model for final answer.
-      messages.push({
-        role: 'assistant',
-        content: null,
-        function_call: { name: fnName, arguments: argsRaw },
-      });
-      messages.push({ role: 'function', name: fnName, content: result });
-      // continue loop to call LLM again
-      continue;
+      console.log(content);
+      return content;
     }
+  });
 
-    // No function call requested; return final assistant content
-    return { content: message.content ?? '', retries: 0, ms: 0 };
-  }
-
-  throw new Error('Exceeded max function call iterations');
+  return {
+    content,
+    retries,
+    ms,
+  };
 }
 
 interface CreateEmbeddingResponse {
@@ -733,25 +737,42 @@ const suffixOverlapsPrefix = (s1: string, s2: string) => {
 export class ChatCompletionContent {
   private readonly body: ReadableStream<Uint8Array>;
   private readonly stopWords: string[];
+  private readonly toolMap?: Record<string, FunctionTool>;
+  // accumulate streamed function_call fragments (do not invoke during streaming)
+  private streamedFunctionName: string | null = null;
+  private streamedFunctionArgsRaw: string = '';
 
-  constructor(body: ReadableStream<Uint8Array>, stopWords: string[]) {
+  constructor(
+    body: ReadableStream<Uint8Array>,
+    stopWords: string[],
+    toolMap?: Record<string, FunctionTool>,
+  ) {
     this.body = body;
     this.stopWords = stopWords;
+    this.toolMap = toolMap;
   }
 
   async *readInner() {
     for await (const data of this.splitStream(this.body)) {
-      if (data.startsWith('data: ')) {
-        try {
-          const json = JSON.parse(data.substring('data: '.length)) as {
-            choices: { delta: { content?: string } }[];
-          };
-          if (json.choices[0].delta.content) {
-            yield json.choices[0].delta.content;
-          }
-        } catch (e) {
-          // e.g. the last chunk is [DONE] which is not valid JSON.
-        }
+      if (!data.startsWith('data: ')) continue;
+      let parsed: any;
+      try {
+        parsed = JSON.parse(data.substring('data: '.length));
+      } catch {
+        // ignore non-JSON (like [DONE])
+        continue;
+      }
+      const choice = parsed.choices && parsed.choices[0];
+      if (!choice || !choice.delta) continue;
+      const delta = choice.delta;
+      if (typeof delta.content === 'string') {
+        yield delta.content;
+      }
+      // accumulate function_call fragments (name once, arguments may be chunked)
+      if (delta.function_call) {
+        if (delta.function_call.name) this.streamedFunctionName = delta.function_call.name;
+        if (delta.function_call.arguments)
+          this.streamedFunctionArgsRaw += delta.function_call.arguments;
       }
     }
   }
@@ -767,6 +788,7 @@ export class ChatCompletionContent {
         const idx = lastFragment.indexOf(stopWord);
         if (idx >= 0) {
           yield lastFragment.substring(0, idx);
+          await this.executeStreamedFunctionCallIfAny();
           return;
         }
         if (suffixOverlapsPrefix(lastFragment, stopWord)) {
@@ -778,6 +800,39 @@ export class ChatCompletionContent {
       lastFragment = '';
     }
     yield lastFragment;
+    await this.executeStreamedFunctionCallIfAny();
+  }
+
+  private async executeStreamedFunctionCallIfAny() {
+    if (!this.streamedFunctionName) return;
+    let parsedArgs: any = null;
+    try {
+      parsedArgs = JSON.parse(this.streamedFunctionArgsRaw);
+    } catch {
+      const m = this.streamedFunctionArgsRaw.match(/\{[\s\S]*\}/);
+      if (m) {
+        try {
+          parsedArgs = JSON.parse(m[0]);
+        } catch {
+          parsedArgs = this.streamedFunctionArgsRaw;
+        }
+      } else {
+        parsedArgs = this.streamedFunctionArgsRaw;
+      }
+    }
+    const name = this.streamedFunctionName;
+    try {
+      const tool = this.toolMap ? this.toolMap[name] : undefined;
+      if (tool && tool.handler) {
+        await tool.handler(parsedArgs);
+      }
+    } catch (e) {
+      console.error('Error executing streamed function handler', e);
+    } finally {
+      // clear buffers to avoid double-calls
+      this.streamedFunctionName = null;
+      this.streamedFunctionArgsRaw = '';
+    }
   }
 
   async readAll() {
