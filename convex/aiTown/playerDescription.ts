@@ -1,4 +1,5 @@
 import { ObjectType, v } from 'convex/values';
+import { internalQuery } from '../_generated/server';
 import { GameId, parseGameId, playerId } from './ids';
 
 export const serializedPlayerDescription = {
@@ -33,3 +34,17 @@ export class PlayerDescription {
     };
   }
 }
+
+export const lookupByName = internalQuery({
+  args: {
+    worldId: v.id('worlds'),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const playerDescription = await ctx.db
+      .query('playerDescriptions')
+      .withIndex('name', (q) => q.eq('worldId', args.worldId).eq('name', args.name))
+      .first();
+    return playerDescription?.playerId;
+  },
+});

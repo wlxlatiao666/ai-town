@@ -57,7 +57,7 @@ export async function startConversationMessage(
   prompt.push(lastPrompt);
 
   const collector: any[] = [];
-  const tools = makeToolset(ctx, collector);
+  const tools = makeToolset(ctx, worldId, agent.id, otherPlayer.id, collector);
   const { content } = await chatCompletionWithFunctions({
     messages: [
       {
@@ -130,7 +130,7 @@ export async function continueConversationMessage(
   llmMessages.push({ role: 'user', content: lastPrompt });
 
   const collector: any[] = [];
-  const tools = makeToolset(ctx, collector);
+  const tools = makeToolset(ctx, worldId, agent.id, otherPlayer.id, collector);
   const { content } = await chatCompletionWithFunctions({
     messages: llmMessages,
     max_tokens: 300,
@@ -182,7 +182,7 @@ export async function leaveConversationMessage(
   llmMessages.push({ role: 'user', content: lastPrompt });
 
   const collector: any[] = [];
-  const tools = makeToolset(ctx, collector);
+  const tools = makeToolset(ctx, worldId, agent.id, otherPlayer.id, collector);
   const { content } = await chatCompletionWithFunctions({
     messages: llmMessages,
     max_tokens: 300,
