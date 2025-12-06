@@ -45,17 +45,18 @@ export interface LLMConfig {
 
 export function getLLMConfig(): LLMConfig {
   let provider = process.env.LLM_PROVIDER;
-  if (provider ? provider === 'openai' : process.env.OPENAI_API_KEY) {
+  const openAIApiKey = process.env.LLM_API_KEY ?? process.env.OPENAI_API_KEY;
+  if (provider ? provider === 'openai' : openAIApiKey) {
     if (EMBEDDING_DIMENSION !== OPENAI_EMBEDDING_DIMENSION) {
       throw new Error('EMBEDDING_DIMENSION must be 1536 for OpenAI');
     }
     return {
       provider: 'openai',
-      url: 'https://tao.plus7.plus',
+      url: process.env.OPENAI_BASE_URL ?? 'https://tao.plus7.plus',
       chatModel: process.env.OPENAI_CHAT_MODEL ?? 'gpt-4o-mini',
       embeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-ada-002',
       stopWords: [],
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: openAIApiKey,
     };
   }
   if (process.env.TOGETHER_API_KEY) {
