@@ -84,7 +84,6 @@ export abstract class AbstractGame {
     const engineUpdate = { engine, completedInputs, expectedGenerationNumber };
     await this.saveStep(ctx, engineUpdate);
 
-    console.debug(`Simulated from ${startTs} to ${currentTs} (${currentTs - startTs}ms)`);
   }
 }
 

@@ -224,13 +224,6 @@ export class Game extends AbstractGame {
       historicalLocations.push({ playerId: id, location: buffer });
       bufferSize += buffer.byteLength;
     }
-    if (bufferSize > 0) {
-      console.debug(
-        `Packed ${Object.entries(historicalLocations).length} history buffers in ${(
-          bufferSize / 1024
-        ).toFixed(2)}KiB.`,
-      );
-    }
     this.historicalLocations.clear();
 
     const result: GameStateDiff = {
