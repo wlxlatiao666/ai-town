@@ -37,10 +37,12 @@ export default PixiComponent('Viewport', {
       .wheel()
       .decelerate()
       .clamp({ direction: 'all', underflow: 'center' })
-      .setZoom(-10)
+      // Allow wider zoom range; min fits roughly the whole map with some padding, max allows close-up.
       .clampZoom({
-        minScale: (1.04 * props.screenWidth) / (props.worldWidth / 2),
-        maxScale: 3.0,
+        minScale:
+          0.5 *
+          Math.min(props.screenWidth / props.worldWidth, props.screenHeight / props.worldHeight),
+        maxScale: 4.0,
       });
     return viewport;
   },
