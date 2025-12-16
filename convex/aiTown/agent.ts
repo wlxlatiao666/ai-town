@@ -29,6 +29,7 @@ export class Agent {
   toRemember?: GameId<'conversations'>;
   lastConversation?: number;
   lastInviteAttempt?: number;
+  gold: number;
   inProgressOperation?: {
     name: string;
     operationId: string;
@@ -40,6 +41,7 @@ export class Agent {
     const playerId = parseGameId('players', serialized.playerId);
     this.id = parseGameId('agents', id);
     this.playerId = playerId;
+    this.gold = serialized.gold ?? 10;
     this.toRemember =
       serialized.toRemember !== undefined
         ? parseGameId('conversations', serialized.toRemember)
@@ -264,6 +266,7 @@ export class Agent {
       lastConversation: this.lastConversation,
       lastInviteAttempt: this.lastInviteAttempt,
       inProgressOperation: this.inProgressOperation,
+      gold: this.gold,
     };
   }
 }
@@ -271,6 +274,7 @@ export class Agent {
 export const serializedAgent = {
   id: agentId,
   playerId: playerId,
+  gold: v.optional(v.number()),
   toRemember: v.optional(conversationId),
   lastConversation: v.optional(v.number()),
   lastInviteAttempt: v.optional(v.number()),

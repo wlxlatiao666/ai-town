@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import PixiGame from './PixiGame.tsx';
 
 import { useElementSize } from 'usehooks-ts';
@@ -36,12 +36,45 @@ export default function Game() {
 
   const scrollViewRef = useRef<HTMLDivElement>(null);
 
+  const agentGoldLeaderboard = useMemo(() => {
+    if (!game) return [];
+    return [...game.world.agents.values()]
+      .map((agent) => {
+        const playerName = game.playerDescriptions.get(agent.playerId)?.name;
+        return {
+          id: agent.id,
+          name: playerName ?? `Agent ${agent.id}`,
+          gold: agent.gold ?? 0,
+        };
+      })
+      .sort((a, b) => b.gold - a.gold);
+  }, [game]);
+
   if (!worldId || !engineId || !game) {
     return null;
   }
+
   return (
     <>
       {SHOW_DEBUG_UI && <DebugTimeManager timeManager={timeManager} width={200} height={100} />}
+      <div className="w-full flex justify-center mb-3 px-4">
+        <div className="w-full max-w-[1400px] box bg-brown-800/80 border-brown-900 shadow-solid p-3">
+          <h2 className="font-display text-xl sm:text-2xl text-brown-50 tracking-wider text-center">
+            Agent Gold
+          </h2>
+          <div className="flex flex-wrap gap-2 sm:gap-3 justify-center mt-2">
+            {agentGoldLeaderboard.map((entry) => (
+              <div
+                key={entry.id}
+                className="px-3 py-2 bg-brown-900 text-brown-100 border border-brown-700 shadow-solid min-w-[140px] text-center"
+              >
+                <div className="font-semibold text-sm sm:text-base">{entry.name}</div>
+                <div className="text-amber-200 text-lg sm:text-xl">{entry.gold} gold</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
       <div className="mx-auto w-full max-w grid grid-rows-[240px_1fr] lg:grid-rows-[1fr] lg:grid-cols-[1fr_auto] lg:grow max-w-[1400px] min-h-[480px] game-frame">
         {/* Game area */}
         <div className="relative overflow-hidden bg-brown-900" ref={gameWrapperRef}>
