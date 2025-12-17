@@ -52,7 +52,7 @@ export function getLLMConfig(): LLMConfig {
     }
     return {
       provider: 'openai',
-      url: process.env.OPENAI_BASE_URL ?? 'https://tao.plus7.plus',
+      url: process.env.OPENAI_BASE_URL ?? 'https://api.openai.com',
       chatModel: process.env.OPENAI_CHAT_MODEL ?? 'gpt-4o-mini',
       embeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-ada-002',
       stopWords: [],

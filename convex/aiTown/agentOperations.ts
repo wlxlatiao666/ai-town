@@ -8,6 +8,7 @@ import {
   leaveConversationMessage,
   startConversationMessage,
 } from '../agent/conversation';
+import { startIndependentThought } from '../agent/independent';
 import { assertNever } from '../util/assertNever';
 import { serializedAgent } from './agent';
 import { ACTIVITIES, ACTIVITY_COOLDOWN, CONVERSATION_COOLDOWN } from '../constants';
@@ -167,6 +168,33 @@ export const agentDoSomething = internalAction({
         operationId: args.operationId,
         agentId: args.agent.id,
         invitee,
+      },
+    });
+  },
+});
+
+export const agentDoIndependentThought = internalAction({
+  args: {
+    worldId: v.id('worlds'),
+    playerId,
+    agentId,
+    operationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const result = await startIndependentThought(
+      ctx,
+      args.worldId,
+      args.playerId as GameId<'players'>,
+      args.agentId as GameId<'agents'>,
+    );
+
+    await ctx.runMutation(api.aiTown.main.sendInput, {
+      worldId: args.worldId,
+      name: 'finishDoIndependentThought',
+      args: {
+        agentId: args.agentId,
+        operationId: args.operationId,
+        queuedActions: result.actions,
       },
     });
   },

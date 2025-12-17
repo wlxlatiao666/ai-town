@@ -15,6 +15,7 @@ import {
   MESSAGE_COOLDOWN,
   MIDPOINT_THRESHOLD,
   PLAYER_CONVERSATION_COOLDOWN,
+  INDEPENDENT_THOUGHT_COOLDOWN,
 } from '../constants';
 import { FunctionArgs } from 'convex/server';
 import { MutationCtx, internalMutation, internalQuery } from '../_generated/server';
@@ -29,6 +30,7 @@ export class Agent {
   toRemember?: GameId<'conversations'>;
   lastConversation?: number;
   lastInviteAttempt?: number;
+  nextIndependentThought?: number;
   inProgressOperation?: {
     name: string;
     operationId: string;
@@ -36,7 +38,8 @@ export class Agent {
   };
 
   constructor(serialized: SerializedAgent) {
-    const { id, lastConversation, lastInviteAttempt, inProgressOperation } = serialized;
+    const { id, lastConversation, lastInviteAttempt, nextIndependentThought, inProgressOperation } =
+      serialized;
     const playerId = parseGameId('players', serialized.playerId);
     this.id = parseGameId('agents', id);
     this.playerId = playerId;
@@ -46,6 +49,7 @@ export class Agent {
         : undefined;
     this.lastConversation = lastConversation;
     this.lastInviteAttempt = lastInviteAttempt;
+    this.nextIndependentThought = nextIndependentThought;
     this.inProgressOperation = inProgressOperation;
   }
 
@@ -76,6 +80,17 @@ export class Agent {
     // If we have been wandering but haven't thought about something to do for
     // a while, do something.
     if (!conversation && !doingActivity && (!player.pathfinding || !recentlyAttemptedInvite)) {
+      // Decide if we should do some independent thought.
+      if (!this.nextIndependentThought || now > this.nextIndependentThought) {
+        this.nextIndependentThought = now + INDEPENDENT_THOUGHT_COOLDOWN;
+        this.startOperation(game, now, 'agentDoIndependentThought', {
+          worldId: game.worldId,
+          playerId: player.id,
+          agentId: this.id,
+        });
+        return;
+      }
+
       this.startOperation(game, now, 'agentDoSomething', {
         worldId: game.worldId,
         player: player.serialize(),
@@ -263,6 +278,7 @@ export class Agent {
       toRemember: this.toRemember,
       lastConversation: this.lastConversation,
       lastInviteAttempt: this.lastInviteAttempt,
+      nextIndependentThought: this.nextIndependentThought,
       inProgressOperation: this.inProgressOperation,
     };
   }
@@ -274,6 +290,7 @@ export const serializedAgent = {
   toRemember: v.optional(conversationId),
   lastConversation: v.optional(v.number()),
   lastInviteAttempt: v.optional(v.number()),
+  nextIndependentThought: v.optional(v.number()),
   inProgressOperation: v.optional(
     v.object({
       name: v.string(),
@@ -297,6 +314,9 @@ export async function runAgentOperation(ctx: MutationCtx, operation: string, arg
       break;
     case 'agentDoSomething':
       reference = internal.aiTown.agentOperations.agentDoSomething;
+      break;
+    case 'agentDoIndependentThought':
+      reference = internal.aiTown.agentOperations.agentDoIndependentThought;
       break;
     default:
       throw new Error(`Unknown operation: ${operation}`);

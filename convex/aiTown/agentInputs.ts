@@ -33,6 +33,62 @@ export const agentInputs = {
       return null;
     },
   }),
+  finishDoIndependentThought: inputHandler({
+    args: {
+      operationId: v.string(),
+      agentId: v.id('agents'),
+      queuedActions: v.optional(v.array(v.any())),
+    },
+    handler: (game, now, args) => {
+      const agentId = parseGameId('agents', args.agentId);
+      const agent = game.world.agents.get(agentId);
+      if (!agent) {
+        throw new Error(`Couldn't find agent: ${agentId}`);
+      }
+      // If we're not doing the operation we expect, just return.
+      if (
+        !agent.inProgressOperation ||
+        agent.inProgressOperation.operationId !== args.operationId
+      ) {
+        console.debug(`Agent ${agentId} didn't have ${args.operationId} in progress`);
+        return null;
+      }
+      delete agent.inProgressOperation;
+
+      // Handle queued actions (same logic as in finishSendingMessage)
+      if (args.queuedActions && Array.isArray(args.queuedActions)) {
+        // We only support 'move' and 'activity' and 'invite' here?
+        // Actually, if we are independent, we might want to stash these in the agent until next tick?
+        // Or execute them immediately if possible?
+        // The original implementation queue actions on conversation.
+        // But here we are independent.
+        // Let's execute them immediately if they are inputs we can handle right now.
+        // OR, better pattern: pass them to `agentInputs` handlers or call methods directly?
+        // `finishDoSomething` handles destination/activity directly.
+        // `finishDoIndependentThought` could do the same.
+        // But `queuedActions` format is `{ type: 'move', ... }`.
+        // console.log(`Get agent independent actions: ${args.queuedActions}`);
+        const player = game.world.players.get(agent.playerId)!;
+        for (const action of args.queuedActions) {
+           if (action.type === 'move') {
+             movePlayer(game, now, player, action.destination);
+           }
+           if (action.type === 'activity') {
+             player.activity = action.activity;
+           }
+           if (action.type === 'invite') {
+              const inviteeId = parseGameId('players', action.inviteeId);
+              const invitee = game.world.players.get(inviteeId);
+              if (invitee) {
+                Conversation.start(game, now, player, invitee);
+                agent.lastInviteAttempt = now;
+              }
+           }
+        }
+      }
+      return null;
+    },
+  }),
   finishDoSomething: inputHandler({
     args: {
       operationId: v.string(),

@@ -27,6 +27,9 @@ export const ACTIVITY_COOLDOWN = 10_000;
 // Don't talk to a player within 60s of talking to them.
 export const PLAYER_CONVERSATION_COOLDOWN = 60000;
 
+// How often to think about doing something independent.
+export const INDEPENDENT_THOUGHT_COOLDOWN = 60 * 1000;
+
 // Invite 80% of invites that come from other agents.
 export const INVITE_ACCEPT_PROBABILITY = 0.8;
 
