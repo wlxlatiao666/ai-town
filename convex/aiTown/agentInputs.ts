@@ -213,6 +213,7 @@ export const agentInputs = {
           inProgressOperation: undefined,
           lastConversation: undefined,
           lastInviteAttempt: undefined,
+          gold: 10,
           toRemember: undefined,
         }),
       );

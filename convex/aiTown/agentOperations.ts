@@ -129,8 +129,23 @@ export const agentDoSomething = internalAction({
         });
         return;
       } else {
-        // TODO: have LLM choose the activity & emoji
-        const activity = ACTIVITIES[Math.floor(Math.random() * ACTIVITIES.length)];
+        // Decide activity based on current gold using helper.
+        const chosen = chooseActivity(agent.gold ?? 0);
+        if (!chosen) {
+          // No valid activities — wander instead.
+          await sleep(Math.random() * 1000);
+          await ctx.runMutation(api.aiTown.main.sendInput, {
+            worldId: args.worldId,
+            name: 'finishDoSomething',
+            args: {
+              operationId: args.operationId,
+              agentId: agent.id,
+              destination: wanderDestination(map),
+            },
+          });
+          return;
+        }
+        const activity = chosen;
         await sleep(Math.random() * 1000);
         await ctx.runMutation(api.aiTown.main.sendInput, {
           worldId: args.worldId,
@@ -141,6 +156,7 @@ export const agentDoSomething = internalAction({
             activity: {
               description: activity.description,
               emoji: activity.emoji,
+              gold: activity.gold,
               until: Date.now() + activity.duration,
             },
           },
@@ -206,4 +222,17 @@ function wanderDestination(worldMap: WorldMap) {
     x: 1 + Math.floor(Math.random() * (worldMap.width - 2)),
     y: 1 + Math.floor(Math.random() * (worldMap.height - 2)),
   };
+}
+
+// Helper: choose an activity based on current gold.
+function chooseActivity(currentGold: number) {
+  // Filter out activities that would make the agent's gold negative.
+  const valid = ACTIVITIES.filter((a) => {
+    const delta = a.gold ?? 0;
+    if (delta < 0 && currentGold + delta < 0) return false;
+    return true;
+  });
+  if (valid.length === 0) return null;
+  // Currently simple strategy: choose uniformly among valid activities.
+  return valid[Math.floor(Math.random() * valid.length)];
 }
