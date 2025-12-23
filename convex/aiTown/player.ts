@@ -38,6 +38,7 @@ export type Pathfinding = Infer<typeof pathfinding>;
 export const activity = v.object({
   description: v.string(),
   emoji: v.optional(v.string()),
+  gold: v.optional(v.number()),
   until: v.number(),
 });
 export type Activity = Infer<typeof activity>;
@@ -82,6 +83,23 @@ export class Player {
   }
 
   tick(game: Game, now: number) {
+    // If an activity finished, apply its effects (gold) for agents.
+    if (this.activity && this.activity.until <= now) {
+      try {
+        const agent = [...game.world.agents.values()].find((a) => a.playerId === this.id);
+        if (agent) {
+          const goldDelta = (this.activity as any).gold ?? 0;
+          agent.gold = (agent.gold ?? 0) + goldDelta;
+          if (goldDelta !== 0) {
+            console.log(`Agent ${agent.id} completed activity ${this.activity.description}: ${goldDelta > 0 ? '+' : ''}${goldDelta} gold`);
+          }
+        }
+      } catch (err) {
+        console.error('Error applying activity effects', err);
+      }
+      delete this.activity;
+    }
+
     if (this.human && this.lastInput < now - HUMAN_IDLE_TOO_LONG) {
       this.leave(game, now);
     }

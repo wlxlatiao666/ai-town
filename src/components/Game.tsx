@@ -69,7 +69,17 @@ export default function Game() {
                 className="px-3 py-2 bg-brown-900 text-brown-100 border border-brown-700 shadow-solid min-w-[140px] text-center"
               >
                 <div className="font-semibold text-sm sm:text-base">{entry.name}</div>
-                <div className="text-amber-200 text-lg sm:text-xl">{entry.gold} gold</div>
+                <div
+                  className={
+                    entry.gold > 10
+                      ? 'text-emerald-300 text-lg sm:text-xl'
+                      : entry.gold < 10
+                      ? 'text-red-400 text-lg sm:text-xl'
+                      : 'text-amber-200 text-lg sm:text-xl'
+                  }
+                >
+                  {entry.gold} gold
+                </div>
               </div>
             ))}
           </div>

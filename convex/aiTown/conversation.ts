@@ -73,6 +73,19 @@ export class Conversation {
       if (playerDistance < CONVERSATION_DISTANCE) {
         console.log(`Starting conversation between ${player1.id} and ${player2.id}`);
 
+        // If both participants correspond to agents, emit a dedicated log.
+        try {
+          const agent1 = [...game.world.agents.values()].find((a) => a.playerId === player1.id);
+          const agent2 = [...game.world.agents.values()].find((a) => a.playerId === player2.id);
+          if (agent1 && agent2) {
+            console.log(
+              `Agent conversation started: agents ${agent1.id} and ${agent2.id} in conversation ${this.id}`,
+            );
+          }
+        } catch (e) {
+          console.error('Error while checking agent participants for conversation log', e);
+        }
+
         // First, stop the two players from moving.
         stopPlayer(player1);
         stopPlayer(player2);
@@ -202,6 +215,34 @@ export class Conversation {
         agent.lastConversation = now;
         agent.toRemember = this.id;
       }
+    }
+
+    // Random gold transfer when conversation ends: if both participants are agents,
+    // randomly select a winner and loser. Transfer 1 gold from loser to winner only
+    // if the loser has at least 1 gold; otherwise skip transfer.
+    try {
+      if (this.participants.size === 2) {
+        const participantIds = [...this.participants.keys()];
+        const agentA = [...game.world.agents.values()].find((a) => a.playerId === participantIds[0]);
+        const agentB = [...game.world.agents.values()].find((a) => a.playerId === participantIds[1]);
+        if (agentA && agentB) {
+          const winner = Math.random() < 0.5 ? agentA : agentB;
+          const loser = winner === agentA ? agentB : agentA;
+          if ((loser.gold ?? 0) >= 1) {
+            winner.gold = (winner.gold ?? 0) + 1;
+            loser.gold = (loser.gold ?? 0) - 1;
+            console.log(
+              `Conversation end gold transfer: agent ${winner.id} +1, agent ${loser.id} -1`,
+            );
+          } else {
+            console.log(
+              `Conversation end: agent ${loser.id} has insufficient gold; transfer skipped.`,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error during gold transfer on conversation end', e);
     }
     // Execute queued actions now that the conversation is ending.
     if (this.queuedActions && this.queuedActions.length > 0) {
