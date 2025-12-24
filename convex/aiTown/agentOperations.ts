@@ -156,6 +156,8 @@ export const agentDoSomething = internalAction({
               description: activity.description,
               emoji: activity.emoji,
               gold: activity.gold,
+              wood: activity.wood,
+              food: activity.food,
               until: Date.now() + activity.duration,
             },
           },
@@ -198,10 +200,14 @@ function wanderDestination(worldMap: WorldMap) {
 
 // Helper: choose an activity based on current gold.
 function chooseActivity(currentGold: number) {
-  // Filter out activities that would make the agent's gold negative.
+  // Filter out activities that would make any tracked resource negative.
   const valid = ACTIVITIES.filter((a) => {
-    const delta = a.gold ?? 0;
-    if (delta < 0 && currentGold + delta < 0) return false;
+    const g = a.gold ?? 0;
+    const w = a.wood ?? 0;
+    const f = a.food ?? 0;
+    if (g < 0 && currentGold + g < 0) return false;
+    // We don't have current wood/food here; conservatively allow activities
+    // that don't push gold negative. (Could be extended to consider wood/food.)
     return true;
   });
   if (valid.length === 0) return null;

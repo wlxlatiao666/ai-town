@@ -49,6 +49,8 @@ export function makeToolset(
               emoji: { type: 'string', description: 'Emoji to represent the activity' },
                   duration: { type: 'number', description: 'Duration in milliseconds' },
                   gold: { type: 'number', description: 'Gold gained (or lost if negative) on completion' },
+                  wood: { type: 'number', description: 'Wood gained (or lost if negative) on completion' },
+                  food: { type: 'number', description: 'Food gained (or lost if negative) on completion' },
             },
             required: ['description', 'emoji', 'duration'],
           },
@@ -65,6 +67,8 @@ export function makeToolset(
             description: args.activity.description,
             emoji: args.activity.emoji,
             gold: args.activity.gold,
+            wood: args.activity.wood,
+            food: args.activity.food,
             until,
           },
         });

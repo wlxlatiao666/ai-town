@@ -45,6 +45,8 @@ export default function Game() {
           id: agent.id,
           name: playerName ?? `Agent ${agent.id}`,
           gold: agent.gold ?? 0,
+          wood: agent.wood ?? 0,
+          food: agent.food ?? 0,
         };
       })
       .sort((a, b) => b.gold - a.gold);
@@ -79,6 +81,28 @@ export default function Game() {
                   }
                 >
                   {entry.gold} gold
+                </div>
+                <div
+                  className={
+                    entry.wood > 10
+                      ? 'text-emerald-300 text-lg sm:text-xl'
+                      : entry.wood < 10
+                      ? 'text-red-400 text-lg sm:text-xl'
+                      : 'text-amber-200 text-lg sm:text-xl'
+                  }
+                >
+                  {entry.wood} wood
+                </div>
+                <div
+                  className={
+                    entry.food > 10
+                      ? 'text-emerald-300 text-lg sm:text-xl'
+                      : entry.food < 10
+                      ? 'text-red-400 text-lg sm:text-xl'
+                      : 'text-amber-200 text-lg sm:text-xl'
+                  }
+                >
+                  {entry.food} food
                 </div>
               </div>
             ))}
