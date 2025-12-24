@@ -81,16 +81,25 @@ export const agentGenerateMessage = internalAction({
     } catch (e) {
       console.error('Error running tradeBegin query', e);
     }
-
-    const result = await completionFn(
-      ctx,
-      args.worldId,
-      args.conversationId as GameId<'conversations'>,
-      args.playerId as GameId<'players'>,
-      args.otherPlayerId as GameId<'players'>,
-    );
-    const text = typeof result === 'string' ? result : result.text;
-    const queuedActions = result && typeof result === 'object' ? result.actions : undefined;
+    // TODO: 已根据双方情况输出log，据此进行交易
+    let text: string = '(no response)';
+    let queuedActions: any[] | undefined = undefined;
+    try {
+      const result = await completionFn(
+        ctx,
+        args.worldId,
+        args.conversationId as GameId<'conversations'>,
+        args.playerId as GameId<'players'>,
+        args.otherPlayerId as GameId<'players'>,
+      );
+      text = typeof result === 'string' ? result : result.text;
+      queuedActions = result && typeof result === 'object' ? result.actions : undefined;
+    } catch (e) {
+      console.error('LLM completion error in agentGenerateMessage:', e);
+      // Fall back to a safe message so that conversation can continue.
+      text = '(error generating message)';
+      queuedActions = undefined;
+    }
 
     await ctx.runMutation(internal.aiTown.agent.agentSendMessage, {
       worldId: args.worldId,

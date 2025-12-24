@@ -32,6 +32,9 @@ export class Agent {
   gold: number;
   wood: number;
   food: number;
+  // Last and previous trade price snapshots
+  lastTrade?: { woodPrice?: number; foodPrice?: number; timestamp?: number };
+  prevTrade?: { woodPrice?: number; foodPrice?: number; timestamp?: number };
   // Consumption rates (amount consumed every `RESOURCE_CONSUMPTION_INTERVAL`)
   woodConsumption: number;
   foodConsumption: number;
@@ -54,6 +57,9 @@ export class Agent {
     this.woodConsumption = (serialized as any).woodConsumption ?? 1;
     this.foodConsumption = (serialized as any).foodConsumption ?? 1;
     this.lastConsumption = (serialized as any).lastConsumption;
+    // Default recent trade snapshots to price=1 so UI shows initial values.
+    this.lastTrade = (serialized as any).lastTrade ?? { woodPrice: 1, foodPrice: 1, timestamp: Date.now() };
+    this.prevTrade = (serialized as any).prevTrade ?? { woodPrice: 1, foodPrice: 1, timestamp: Date.now() };
     this.toRemember =
       serialized.toRemember !== undefined
         ? parseGameId('conversations', serialized.toRemember)
@@ -310,6 +316,8 @@ export class Agent {
       gold: this.gold,
       wood: this.wood,
       food: this.food,
+      lastTrade: this.lastTrade,
+      prevTrade: this.prevTrade,
       woodConsumption: this.woodConsumption,
       foodConsumption: this.foodConsumption,
       lastConsumption: this.lastConsumption,
@@ -323,6 +331,8 @@ export const serializedAgent = {
   gold: v.optional(v.number()),
   wood: v.optional(v.number()),
   food: v.optional(v.number()),
+  lastTrade: v.optional(v.object({ woodPrice: v.optional(v.number()), foodPrice: v.optional(v.number()), timestamp: v.optional(v.number()) })),
+  prevTrade: v.optional(v.object({ woodPrice: v.optional(v.number()), foodPrice: v.optional(v.number()), timestamp: v.optional(v.number()) })),
   woodConsumption: v.optional(v.number()),
   foodConsumption: v.optional(v.number()),
   lastConsumption: v.optional(v.number()),
