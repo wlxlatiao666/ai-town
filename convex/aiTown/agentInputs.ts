@@ -158,6 +158,11 @@ export const agentInputs = {
           lastConversation: undefined,
           lastInviteAttempt: undefined,
           gold: 10,
+          wood: 10,
+          food: 10,
+          woodConsumption: 1,
+          foodConsumption: 1,
+          lastConsumption: now,
           toRemember: undefined,
         }),
       );

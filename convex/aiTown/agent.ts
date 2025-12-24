@@ -32,6 +32,11 @@ export class Agent {
   gold: number;
   wood: number;
   food: number;
+  // Consumption rates (amount consumed every `RESOURCE_CONSUMPTION_INTERVAL`)
+  woodConsumption: number;
+  foodConsumption: number;
+  // Timestamp of last consumption
+  lastConsumption?: number;
   inProgressOperation?: {
     name: string;
     operationId: string;
@@ -46,6 +51,9 @@ export class Agent {
     this.gold = serialized.gold ?? 10;
     this.wood = serialized.wood ?? 10;
     this.food = serialized.food ?? 10;
+    this.woodConsumption = (serialized as any).woodConsumption ?? 1;
+    this.foodConsumption = (serialized as any).foodConsumption ?? 1;
+    this.lastConsumption = (serialized as any).lastConsumption;
     this.toRemember =
       serialized.toRemember !== undefined
         ? parseGameId('conversations', serialized.toRemember)
@@ -56,6 +64,25 @@ export class Agent {
   }
 
   tick(game: Game, now: number) {
+    // Resource consumption: consume wood/food every 60s.
+    try {
+      const RESOURCE_CONSUMPTION_INTERVAL = 60_000;
+      if (!this.lastConsumption) {
+        this.lastConsumption = now;
+      } else if (now >= this.lastConsumption + RESOURCE_CONSUMPTION_INTERVAL) {
+        const times = Math.floor((now - this.lastConsumption) / RESOURCE_CONSUMPTION_INTERVAL);
+        const totalWood = (this.woodConsumption ?? 0) * times;
+        const totalFood = (this.foodConsumption ?? 0) * times;
+        this.wood = Math.max(0, (this.wood ?? 0) - totalWood);
+        this.food = Math.max(0, (this.food ?? 0) - totalFood);
+        this.lastConsumption = this.lastConsumption + times * RESOURCE_CONSUMPTION_INTERVAL;
+        console.log(
+          `Agent ${this.id} consumed resources: -${totalWood} wood, -${totalFood} food (now wood=${this.wood}, food=${this.food})`,
+        );
+      }
+    } catch (err) {
+      console.error('Error handling resource consumption for agent', this.id, err);
+    }
     const player = game.world.players.get(this.playerId);
     if (!player) {
       throw new Error(`Invalid player ID ${this.playerId}`);
@@ -273,6 +300,9 @@ export class Agent {
       gold: this.gold,
       wood: this.wood,
       food: this.food,
+      woodConsumption: this.woodConsumption,
+      foodConsumption: this.foodConsumption,
+      lastConsumption: this.lastConsumption,
     };
   }
 }
@@ -283,6 +313,9 @@ export const serializedAgent = {
   gold: v.optional(v.number()),
   wood: v.optional(v.number()),
   food: v.optional(v.number()),
+  woodConsumption: v.optional(v.number()),
+  foodConsumption: v.optional(v.number()),
+  lastConsumption: v.optional(v.number()),
   toRemember: v.optional(conversationId),
   lastConversation: v.optional(v.number()),
   lastInviteAttempt: v.optional(v.number()),
