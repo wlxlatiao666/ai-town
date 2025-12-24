@@ -30,8 +30,18 @@ export class Agent {
   toRemember?: GameId<'conversations'>;
   lastConversation?: number;
   lastInviteAttempt?: number;
-  gold: number;
   nextIndependentThought?: number;
+  gold: number;
+  wood: number;
+  food: number;
+  // Last and previous trade price snapshots
+  lastTrade?: { woodPrice?: number; foodPrice?: number; timestamp?: number };
+  prevTrade?: { woodPrice?: number; foodPrice?: number; timestamp?: number };
+  // Consumption rates (amount consumed every `RESOURCE_CONSUMPTION_INTERVAL`)
+  woodConsumption: number;
+  foodConsumption: number;
+  // Timestamp of last consumption
+  lastConsumption?: number;
   inProgressOperation?: {
     name: string;
     operationId: string;
@@ -45,6 +55,14 @@ export class Agent {
     this.id = parseGameId('agents', id);
     this.playerId = playerId;
     this.gold = serialized.gold ?? 10;
+    this.wood = serialized.wood ?? 10;
+    this.food = serialized.food ?? 10;
+    this.woodConsumption = (serialized as any).woodConsumption ?? 1;
+    this.foodConsumption = (serialized as any).foodConsumption ?? 1;
+    this.lastConsumption = (serialized as any).lastConsumption;
+    // Default recent trade snapshots to price=1 so UI shows initial values.
+    this.lastTrade = (serialized as any).lastTrade ?? { woodPrice: 1, foodPrice: 1, timestamp: Date.now() };
+    this.prevTrade = (serialized as any).prevTrade ?? { woodPrice: 1, foodPrice: 1, timestamp: Date.now() };
     this.toRemember =
       serialized.toRemember !== undefined
         ? parseGameId('conversations', serialized.toRemember)
@@ -56,6 +74,35 @@ export class Agent {
   }
 
   tick(game: Game, now: number) {
+    // Resource consumption: consume wood/food every 60s.
+    try {
+      const RESOURCE_CONSUMPTION_INTERVAL = 60_000;
+      if (!this.lastConsumption) {
+        this.lastConsumption = now;
+      } else if (now >= this.lastConsumption + RESOURCE_CONSUMPTION_INTERVAL) {
+        const times = Math.floor((now - this.lastConsumption) / RESOURCE_CONSUMPTION_INTERVAL);
+        const totalWood = (this.woodConsumption ?? 0) * times;
+        const totalFood = (this.foodConsumption ?? 0) * times;
+        // If resources are sufficient, consume; otherwise skip this consumption.
+        if ((this.wood ?? 0) >= totalWood && (this.food ?? 0) >= totalFood) {
+          this.wood = (this.wood ?? 0) - totalWood;
+          this.food = (this.food ?? 0) - totalFood;
+          this.lastConsumption = this.lastConsumption + times * RESOURCE_CONSUMPTION_INTERVAL;
+          console.log(
+            `Agent ${this.id} consumed resources: -${totalWood} wood, -${totalFood} food (now wood=${this.wood}, food=${this.food})`,
+          );
+        } else {
+          // Skip consumption for these intervals and advance lastConsumption so
+          // we don't repeatedly attempt the same missed intervals.
+          console.log(
+            `Agent ${this.id} skipping consumption (insufficient resources): need ${totalWood} wood and ${totalFood} food, have wood=${this.wood}, food=${this.food}`,
+          );
+          this.lastConsumption = this.lastConsumption + times * RESOURCE_CONSUMPTION_INTERVAL;
+        }
+      }
+    } catch (err) {
+      console.error('Error handling resource consumption for agent', this.id, err);
+    }
     const player = game.world.players.get(this.playerId);
     if (!player) {
       throw new Error(`Invalid player ID ${this.playerId}`);
@@ -283,6 +330,13 @@ export class Agent {
       nextIndependentThought: this.nextIndependentThought,
       inProgressOperation: this.inProgressOperation,
       gold: this.gold,
+      wood: this.wood,
+      food: this.food,
+      lastTrade: this.lastTrade,
+      prevTrade: this.prevTrade,
+      woodConsumption: this.woodConsumption,
+      foodConsumption: this.foodConsumption,
+      lastConsumption: this.lastConsumption,
     };
   }
 }
@@ -291,6 +345,13 @@ export const serializedAgent = {
   id: agentId,
   playerId: playerId,
   gold: v.optional(v.number()),
+  wood: v.optional(v.number()),
+  food: v.optional(v.number()),
+  lastTrade: v.optional(v.object({ woodPrice: v.optional(v.number()), foodPrice: v.optional(v.number()), timestamp: v.optional(v.number()) })),
+  prevTrade: v.optional(v.object({ woodPrice: v.optional(v.number()), foodPrice: v.optional(v.number()), timestamp: v.optional(v.number()) })),
+  woodConsumption: v.optional(v.number()),
+  foodConsumption: v.optional(v.number()),
+  lastConsumption: v.optional(v.number()),
   toRemember: v.optional(conversationId),
   lastConversation: v.optional(v.number()),
   lastInviteAttempt: v.optional(v.number()),

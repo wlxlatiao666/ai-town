@@ -45,6 +45,10 @@ export default function Game() {
           id: agent.id,
           name: playerName ?? `Agent ${agent.id}`,
           gold: agent.gold ?? 0,
+          wood: agent.wood ?? 0,
+          food: agent.food ?? 0,
+          lastTrade: agent.lastTrade,
+          prevTrade: agent.prevTrade,
         };
       })
       .sort((a, b) => b.gold - a.gold);
@@ -64,21 +68,82 @@ export default function Game() {
           </h2>
           <div className="flex flex-wrap gap-2 sm:gap-3 justify-center mt-2">
             {agentGoldLeaderboard.map((entry) => (
-              <div
-                key={entry.id}
-                className="px-3 py-2 bg-brown-900 text-brown-100 border border-brown-700 shadow-solid min-w-[140px] text-center"
-              >
-                <div className="font-semibold text-sm sm:text-base">{entry.name}</div>
-                <div
-                  className={
-                    entry.gold > 10
-                      ? 'text-emerald-300 text-lg sm:text-xl'
-                      : entry.gold < 10
-                      ? 'text-red-400 text-lg sm:text-xl'
-                      : 'text-amber-200 text-lg sm:text-xl'
-                  }
-                >
-                  {entry.gold} gold
+              <div key={entry.id} className="flex items-start gap-3">
+                {/* Agent card */}
+                <div className="px-3 py-2 bg-brown-900 text-brown-100 border border-brown-700 shadow-solid min-w-[140px] text-center">
+                  <div className="font-semibold text-sm sm:text-base">{entry.name}</div>
+                  <div
+                    className={
+                      entry.gold > 10
+                        ? 'text-emerald-300 text-lg sm:text-xl'
+                        : entry.gold < 10
+                        ? 'text-red-400 text-lg sm:text-xl'
+                        : 'text-amber-200 text-lg sm:text-xl'
+                    }
+                  >
+                    {entry.gold} gold
+                  </div>
+                  <div
+                    className={
+                      entry.wood > 10
+                        ? 'text-emerald-300 text-lg sm:text-xl'
+                        : entry.wood < 10
+                        ? 'text-red-400 text-lg sm:text-xl'
+                        : 'text-amber-200 text-lg sm:text-xl'
+                    }
+                  >
+                    {entry.wood} wood
+                  </div>
+                  <div
+                    className={
+                      entry.food > 10
+                        ? 'text-emerald-300 text-lg sm:text-xl'
+                        : entry.food < 10
+                        ? 'text-red-400 text-lg sm:text-xl'
+                        : 'text-amber-200 text-lg sm:text-xl'
+                    }
+                  >
+                    {entry.food} food
+                  </div>
+                </div>
+
+                {/* Combined price card */}
+                <div className="px-3 py-2 bg-brown-900 text-brown-100 border border-brown-700 shadow-solid min-w-[180px] text-center">
+                  <div className="text-xs text-brown-300">Prices</div>
+                  <div className="mt-1 text-sm flex flex-col gap-1">
+                    <div>
+                      <span className={
+                        entry.prevTrade?.woodPrice !== undefined
+                          ? entry.lastTrade!.woodPrice > entry.prevTrade!.woodPrice
+                            ? 'text-emerald-300'
+                            : entry.lastTrade!.woodPrice < entry.prevTrade!.woodPrice
+                            ? 'text-red-400'
+                            : 'text-amber-200'
+                          : 'text-amber-200'
+                      }>
+                        wood {entry.lastTrade?.woodPrice ?? '—'}
+                      </span>
+                      {entry.prevTrade?.woodPrice !== undefined && (
+                        <span className="text-xs text-brown-200 ml-1">{entry.prevTrade!.woodPrice}</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className={
+                        entry.prevTrade?.foodPrice !== undefined
+                          ? entry.lastTrade!.foodPrice > entry.prevTrade!.foodPrice
+                            ? 'text-emerald-300'
+                            : entry.lastTrade!.foodPrice < entry.prevTrade!.foodPrice
+                            ? 'text-red-400'
+                            : 'text-amber-200'
+                          : 'text-amber-200'
+                      }>
+                        food {entry.lastTrade?.foodPrice ?? '—'}
+                      </span>
+                      {entry.prevTrade?.foodPrice !== undefined && (
+                        <span className="text-xs text-brown-200 ml-1">{entry.prevTrade!.foodPrice}</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -105,8 +170,8 @@ https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-5315492
                   />
                 </ConvexProvider>
               </Stage>
-            </div>
           </div>
+        </div>
         </div>
         {/* Right column area */}
         <div

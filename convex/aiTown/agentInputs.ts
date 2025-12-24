@@ -214,6 +214,14 @@ export const agentInputs = {
           lastConversation: undefined,
           lastInviteAttempt: undefined,
           gold: 10,
+          wood: 10,
+          food: 10,
+          // Initialize last and previous trade prices to 1 by default.
+          lastTrade: { woodPrice: 1, foodPrice: 1, timestamp: now },
+          prevTrade: { woodPrice: 1, foodPrice: 1, timestamp: now },
+          woodConsumption: 1,
+          foodConsumption: 1,
+          lastConsumption: now,
           toRemember: undefined,
         }),
       );

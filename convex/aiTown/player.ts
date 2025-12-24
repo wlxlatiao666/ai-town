@@ -39,6 +39,8 @@ export const activity = v.object({
   description: v.string(),
   emoji: v.optional(v.string()),
   gold: v.optional(v.number()),
+  wood: v.optional(v.number()),
+  food: v.optional(v.number()),
   until: v.number(),
 });
 export type Activity = Infer<typeof activity>;
@@ -89,9 +91,21 @@ export class Player {
         const agent = [...game.world.agents.values()].find((a) => a.playerId === this.id);
         if (agent) {
           const goldDelta = (this.activity as any).gold ?? 0;
+          const woodDelta = (this.activity as any).wood ?? 0;
+          const foodDelta = (this.activity as any).food ?? 0;
           agent.gold = (agent.gold ?? 0) + goldDelta;
-          if (goldDelta !== 0) {
-            console.log(`Agent ${agent.id} completed activity ${this.activity.description}: ${goldDelta > 0 ? '+' : ''}${goldDelta} gold`);
+          agent.wood = (agent.wood ?? 0) + woodDelta;
+          agent.food = (agent.food ?? 0) + foodDelta;
+          if (goldDelta !== 0 || woodDelta !== 0 || foodDelta !== 0) {
+            console.log(
+              `Agent ${agent.id} completed activity ${this.activity.description}: ${
+                goldDelta !== 0 ? (goldDelta > 0 ? '+' : '') + goldDelta + ' gold ' : ''
+              }${
+                woodDelta !== 0 ? (woodDelta > 0 ? '+' : '') + woodDelta + ' wood ' : ''
+              }${
+                foodDelta !== 0 ? (foodDelta > 0 ? '+' : '') + foodDelta + ' food' : ''
+              }`,
+            );
           }
         }
       } catch (err) {
