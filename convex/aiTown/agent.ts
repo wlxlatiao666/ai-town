@@ -73,12 +73,22 @@ export class Agent {
         const times = Math.floor((now - this.lastConsumption) / RESOURCE_CONSUMPTION_INTERVAL);
         const totalWood = (this.woodConsumption ?? 0) * times;
         const totalFood = (this.foodConsumption ?? 0) * times;
-        this.wood = Math.max(0, (this.wood ?? 0) - totalWood);
-        this.food = Math.max(0, (this.food ?? 0) - totalFood);
-        this.lastConsumption = this.lastConsumption + times * RESOURCE_CONSUMPTION_INTERVAL;
-        console.log(
-          `Agent ${this.id} consumed resources: -${totalWood} wood, -${totalFood} food (now wood=${this.wood}, food=${this.food})`,
-        );
+        // If resources are sufficient, consume; otherwise skip this consumption.
+        if ((this.wood ?? 0) >= totalWood && (this.food ?? 0) >= totalFood) {
+          this.wood = (this.wood ?? 0) - totalWood;
+          this.food = (this.food ?? 0) - totalFood;
+          this.lastConsumption = this.lastConsumption + times * RESOURCE_CONSUMPTION_INTERVAL;
+          console.log(
+            `Agent ${this.id} consumed resources: -${totalWood} wood, -${totalFood} food (now wood=${this.wood}, food=${this.food})`,
+          );
+        } else {
+          // Skip consumption for these intervals and advance lastConsumption so
+          // we don't repeatedly attempt the same missed intervals.
+          console.log(
+            `Agent ${this.id} skipping consumption (insufficient resources): need ${totalWood} wood and ${totalFood} food, have wood=${this.wood}, food=${this.food}`,
+          );
+          this.lastConsumption = this.lastConsumption + times * RESOURCE_CONSUMPTION_INTERVAL;
+        }
       }
     } catch (err) {
       console.error('Error handling resource consumption for agent', this.id, err);
