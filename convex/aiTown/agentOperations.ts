@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { internalAction } from '../_generated/server';
+import { internalAction, internalQuery } from '../_generated/server';
 import { WorldMap, serializedWorldMap } from './worldMap';
 import { rememberConversation } from '../agent/memory';
 import { GameId, agentId, conversationId, playerId } from './ids';
@@ -69,6 +69,19 @@ export const agentGenerateMessage = internalAction({
       default:
         assertNever(args.type);
     }
+    // Trigger trade_begin to collect both participants' resources before
+    // invoking the LLM completion function.
+    try {
+      const tradeInfo = await ctx.runQuery(internal.aiTown.agentOperations.tradeBegin, {
+        worldId: args.worldId as any,
+        playerId: args.playerId as any,
+        otherPlayerId: args.otherPlayerId as any,
+      } as any);
+      console.log('tradeBegin info:', JSON.stringify(tradeInfo));
+    } catch (e) {
+      console.error('Error running tradeBegin query', e);
+    }
+
     const result = await completionFn(
       ctx,
       args.worldId,
@@ -90,6 +103,34 @@ export const agentGenerateMessage = internalAction({
       operationId: args.operationId,
       queuedActions,
     } as any);
+  },
+});
+
+export const tradeBegin = internalQuery({
+  args: {
+    worldId: v.id('worlds'),
+    playerId: v.id('players'),
+    otherPlayerId: v.id('players'),
+  },
+  handler: async (ctx, args) => {
+    const worldDoc = await ctx.db.get(args.worldId);
+    if (!worldDoc) {
+      throw new Error(`No world found: ${args.worldId}`);
+    }
+    const agents = worldDoc.agents || [];
+    const a1 = agents.find((a: any) => a.playerId === args.playerId);
+    const a2 = agents.find((a: any) => a.playerId === args.otherPlayerId);
+    const result = {
+      agentA: a1
+        ? { id: a1.id, gold: a1.gold ?? 0, wood: a1.wood ?? 0, food: a1.food ?? 0 }
+        : null,
+      agentB: a2
+        ? { id: a2.id, gold: a2.gold ?? 0, wood: a2.wood ?? 0, food: a2.food ?? 0 }
+        : null,
+    };
+    // Optionally log or persist trade-begin event here.
+    console.log('tradeBegin', result);
+    return result;
   },
 });
 
@@ -129,7 +170,7 @@ export const agentDoSomething = internalAction({
         return;
       } else {
         // Decide activity based on current gold using helper.
-        const chosen = chooseActivity(agent.gold ?? 0);
+        const chosen = chooseActivity(agent.gold ?? 0, agent.wood ?? 0, agent.food ?? 0, agent.id);
         if (!chosen) {
           // No valid activities — wander instead.
           await sleep(Math.random() * 1000);
@@ -199,17 +240,20 @@ function wanderDestination(worldMap: WorldMap) {
 }
 
 // Helper: choose an activity based on current gold.
-function chooseActivity(currentGold: number) {
+function chooseActivity(currentGold: number, currentWood: number, currentFood: number, agentId: any) {
   // Filter out activities that would make any tracked resource negative.
   const valid = ACTIVITIES.filter((a) => {
     const g = a.gold ?? 0;
     const w = a.wood ?? 0;
     const f = a.food ?? 0;
     if (g < 0 && currentGold + g < 0) return false;
-    // We don't have current wood/food here; conservatively allow activities
-    // that don't push gold negative. (Could be extended to consider wood/food.)
     return true;
   });
+  
+  //TODO: 根据具体的资源情况调整选择策略
+
+  
+
   if (valid.length === 0) return null;
   // Currently simple strategy: choose uniformly among valid activities.
   return valid[Math.floor(Math.random() * valid.length)];
