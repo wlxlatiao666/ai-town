@@ -213,7 +213,7 @@ export const agentInputs = {
           inProgressOperation: undefined,
           lastConversation: undefined,
           lastInviteAttempt: undefined,
-          gold: 10,
+          gold: description.name === 'Tycoon' ? 50 : 10,
           wood: 10,
           food: 10,
           // Initialize last and previous trade prices to 1 by default.

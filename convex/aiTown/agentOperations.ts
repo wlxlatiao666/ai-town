@@ -15,6 +15,8 @@ import { ACTIVITIES, ACTIVITY_COOLDOWN, CONVERSATION_COOLDOWN } from '../constan
 import { api, internal } from '../_generated/api';
 import { sleep } from '../util/sleep';
 import { serializedPlayer } from './player';
+import { chatCompletionWithFunctions } from '../util/llm';
+import { Id } from '../_generated/dataModel';
 
 export const agentRememberConversation = internalAction({
   args: {
@@ -180,7 +182,13 @@ export const agentDoSomething = internalAction({
         return;
       } else {
         // Decide activity based on current gold using helper.
-        const chosen = chooseActivity(agent.gold ?? 0, agent.wood ?? 0, agent.food ?? 0, agent.id);
+        const playerDesc = await ctx.runQuery(internal.aiTown.agentOperations.getPlayerDescription, {
+          worldId: args.worldId,
+          playerId: player.id,
+        });
+        const playerName = playerDesc ? playerDesc.name : 'Agent';
+        const playerIdentity = playerDesc ? playerDesc.description : 'You are a villager.';
+        const chosen = await chooseActivity(args.worldId, agent, playerName, playerIdentity);
         if (!chosen) {
           // No valid activities — wander instead.
           await sleep(Math.random() * 1000);
@@ -195,7 +203,27 @@ export const agentDoSomething = internalAction({
           });
           return;
         }
-        const activity = chosen;
+        let activity = { ...chosen };
+        
+        // Apply trait modifiers
+        if (playerDesc) {
+           if (playerDesc.name === 'Lucas' && activity.description === 'chopping wood') {
+             activity.wood = (activity.wood ?? 0) * 2;
+           }
+           if (playerDesc.name === 'Finn' && activity.description === 'fishing') {
+             activity.food = (activity.food ?? 0) * 2;
+           }
+           if (playerDesc.name === 'Tycoon') {
+             // Work activities are less efficient for Tycoon (slower or less output)
+             // Let's make work less productive:
+             if ((activity.gold ?? 0) > 0 || (activity.wood ?? 0) > 0 || (activity.food ?? 0) > 0) {
+                if (activity.gold && activity.gold > 0) activity.gold = Math.max(1, Math.floor(activity.gold * 0.5));
+                if (activity.wood && activity.wood > 0) activity.wood = Math.max(1, Math.floor(activity.wood * 0.5));
+                if (activity.food && activity.food > 0) activity.food = Math.max(1, Math.floor(activity.food * 0.5));
+             }
+           }
+        }
+
         await sleep(Math.random() * 1000);
         await ctx.runMutation(api.aiTown.main.sendInput, {
           worldId: args.worldId,
@@ -277,21 +305,80 @@ function wanderDestination(worldMap: WorldMap) {
 }
 
 // Helper: choose an activity based on current gold.
-function chooseActivity(currentGold: number, currentWood: number, currentFood: number, agentId: any) {
+async function chooseActivity(worldId: Id<'worlds'>, agent: any, playerName: string, playerIdentity: string) {
   // Filter out activities that would make any tracked resource negative.
   const valid = ACTIVITIES.filter((a) => {
     const g = a.gold ?? 0;
     const w = a.wood ?? 0;
     const f = a.food ?? 0;
-    if (g < 0 && currentGold + g < 0) return false;
+    if (g < 0 && (agent.gold ?? 0) + g < 0) return false;
+    if (w < 0 && (agent.wood ?? 0) + w < 0) return false;
+    if (f < 0 && (agent.food ?? 0) + f < 0) return false;
     return true;
   });
-  
-  //TODO: 根据具体的资源情况调整选择策略
-
-  
 
   if (valid.length === 0) return null;
-  // Currently simple strategy: choose uniformly among valid activities.
-  return valid[Math.floor(Math.random() * valid.length)];
+
+  let chosenActivity: any = null;
+
+  const tools = [
+    {
+      name: 'choose_activity',
+      description: 'Select an activity to perform.',
+      parameters: {
+        type: 'object',
+        properties: {
+          activityName: {
+            type: 'string',
+            description: 'The exact description of the activity to choose.',
+            enum: valid.map((a) => a.description),
+          },
+        },
+        required: ['activityName'],
+      },
+      handler: async (args: { activityName: string }) => {
+        const found = valid.find((a) => a.description === args.activityName);
+        if (found) {
+          chosenActivity = found;
+          return `You decided to start: ${args.activityName}`;
+        }
+        return `Activity not found: ${args.activityName}`;
+      },
+    },
+  ];
+
+  try {
+    await chatCompletionWithFunctions({
+      messages: [
+        {
+          role: 'system',
+          content: `You are ${playerName}. Identity: ${playerIdentity} Resources: Gold: ${agent.gold ?? 0}, Wood: ${agent.wood ?? 0}, Food: ${agent.food ?? 0}.\nYou are currently idle and need to choose an activity to perform.\nAvailable activities:\n${valid.map((a) => `- ${a.description} (Gold: ${a.gold}, Wood: ${a.wood}, Food: ${a.food})`).join('\n')}\nChoose one activity by its name based on your identity and needs.`,
+        },
+        { role: 'user', content: 'What activity do you choose?' },
+      ],
+      toolset: tools,
+      max_tokens: 200,
+    });
+  } catch (e) {
+    console.error('chooseActivity LLM error', e);
+  }
+
+  // If LLM failed or didn't choose, fallback to random
+  if (!chosenActivity) {
+    return valid[Math.floor(Math.random() * valid.length)];
+  }
+  return chosenActivity;
 }
+
+export const getPlayerDescription = internalQuery({
+  args: {
+    worldId: v.id('worlds'),
+    playerId: playerId,
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('playerDescriptions')
+      .withIndex('worldId', (q) => q.eq('worldId', args.worldId).eq('playerId', args.playerId))
+      .first();
+  },
+});
