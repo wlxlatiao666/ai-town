@@ -18,85 +18,36 @@ export function makeToolset(
   };
   return [
     {
-      name: 'agent_move',
-      description: 'Queue a move action for this agent (destination).',
+      name: 'agent_trade',
+      description: 'Propose a trade with the other player in the conversation.',
       parameters: {
         type: 'object',
         properties: {
-          destination: {
-            type: 'object',
-            properties: { x: { type: 'number' }, y: { type: 'number' } },
+          pricewood: { type: 'number', description: 'Price per unit of wood. Must be >= 0.' },
+          tradewood: {
+            type: 'number',
+            description:
+              'Amount of wood to trade. Positive to BUY from other, negative to SELL to other.',
+          },
+          pricefood: { type: 'number', description: 'Price per unit of food. Must be >= 0.' },
+          tradefood: {
+            type: 'number',
+            description:
+              'Amount of food to trade. Positive to BUY from other, negative to SELL to other.',
           },
         },
-        required: ['destination'],
+        required: ['pricewood', 'tradewood', 'pricefood', 'tradefood'],
       },
       handler: async (args: any) => {
-        console.log(`[agent_move] agentId=${agentId} destination=${JSON.stringify(args.destination)}`);
-        push({ type: 'move', agentId, destination: args.destination });
-        return 'queued';
-      },
-    },
-    {
-      name: 'agent_activity',
-      description: 'Queue an activity for this agent (description, emoji, duration).',
-      parameters: {
-        type: 'object',
-        properties: {
-          activity: {
-            type: 'object',
-            properties: {
-              description: { type: 'string', description: 'Description of the activity' },
-              emoji: { type: 'string', description: 'Emoji to represent the activity' },
-                  duration: { type: 'number', description: 'Duration in milliseconds' },
-                  gold: { type: 'number', description: 'Gold gained (or lost if negative) on completion' },
-                  wood: { type: 'number', description: 'Wood gained (or lost if negative) on completion' },
-                  food: { type: 'number', description: 'Food gained (or lost if negative) on completion' },
-            },
-            required: ['description', 'emoji', 'duration'],
-          },
-        },
-        required: ['activity'],
-      },
-      handler: async (args: any) => {
-        console.log(`[agent_activity] agentId=${agentId} activity=${JSON.stringify(args.activity)}`);
-        const until = Date.now() + (args.activity.duration || 60000);
+        console.log(`[agent_trade] agentId=${agentId} args=${JSON.stringify(args)}`);
         push({
-          type: 'activity',
+          type: 'trade',
           agentId,
-          activity: {
-            description: args.activity.description,
-            emoji: args.activity.emoji,
-            gold: args.activity.gold,
-            wood: args.activity.wood,
-            food: args.activity.food,
-            until,
-          },
+          pricewood: args.pricewood,
+          tradewood: args.tradewood,
+          pricefood: args.pricefood,
+          tradefood: args.tradefood,
         });
-        return 'queued';
-      },
-    },
-    {
-      name: 'agent_invite',
-      description: 'Queue an invite to start a conversation with another player.',
-      parameters: {
-        type: 'object',
-        properties: {
-          inviteeName: { type: 'string' },
-        },
-        required: ['inviteeName'],
-      },
-      handler: async (args: any) => {
-        console.log(`[agent_invite] agentId=${agentId} inviteeName=${args.inviteeName}`);
-        const inviteeId = await ctx.runQuery(internal.aiTown.playerDescription.lookupByName, {
-          worldId,
-          name: args.inviteeName,
-        });
-        if (!inviteeId) {
-          console.warn(`[agent_invite] Could not find player with name ${args.inviteeName}`);
-          return 'failed: player not found';
-        }
-        console.log(`[agent_invite] Found player ${args.inviteeName} with ID ${inviteeId}`);
-        push({ type: 'invite', agentId, inviteeId });
         return 'queued';
       },
     },

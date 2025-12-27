@@ -200,7 +200,16 @@ function agentPrompts(
   const prompt = [];
   if (agent) {
     prompt.push(`About you: ${agent.identity}`);
-    prompt.push(`Your goals for the conversation: ${agent.plan}`);
+    prompt.push(`Your life goals: ${agent.plan}`);
+    prompt.push(
+      `IMPORTANT: The ONLY goal of this conversation is to TRADE resources for gold. Do not talk about anything else.`,
+    );
+    prompt.push(
+      `You can ONLY use the 'agent_trade' tool if the other person has EXPLICITLY AGREED to the trade terms.`,
+    );
+    prompt.push(
+      `When you have agreed on a trade, use the 'agent_trade' tool to commit it. Then say goodbye.`,
+    );
   }
   if (otherAgent) {
     prompt.push(`About ${otherPlayer.name}: ${otherAgent.identity}`);

@@ -130,15 +130,15 @@ export class Agent {
     // a while, do something.
     if (!conversation && !doingActivity && (!player.pathfinding || !recentlyAttemptedInvite)) {
       // Decide if we should do some independent thought.
-      if (!this.nextIndependentThought || now > this.nextIndependentThought) {
-        this.nextIndependentThought = now + INDEPENDENT_THOUGHT_COOLDOWN;
-        this.startOperation(game, now, 'agentDoIndependentThought', {
-          worldId: game.worldId,
-          playerId: player.id,
-          agentId: this.id,
-        });
-        return;
-      }
+      // if (!this.nextIndependentThought || now > this.nextIndependentThought) {
+      //   this.nextIndependentThought = now + INDEPENDENT_THOUGHT_COOLDOWN;
+      //   this.startOperation(game, now, 'agentDoIndependentThought', {
+      //     worldId: game.worldId,
+      //     playerId: player.id,
+      //     agentId: this.id,
+      //   });
+      //   return;
+      // }
 
       this.startOperation(game, now, 'agentDoSomething', {
         worldId: game.worldId,

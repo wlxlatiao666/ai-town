@@ -245,138 +245,92 @@ export class Conversation {
       console.error('Error during gold transfer on conversation end', e);
     }
     // Execute queued actions now that the conversation is ending.
+    // We only allow MAX ONE trade transaction per conversation as per requirements.
     if (this.queuedActions && this.queuedActions.length > 0) {
-      for (const action of this.queuedActions) {
+      // Prioritize identifying a valid trade.
+      const tradeAction = this.queuedActions.find(a => a.type === 'trade');
+      
+      if (tradeAction) {
         try {
-          switch (action.type) {
-            case 'move': {
-              const agent = [...game.world.agents.values()].find((a) => a.id === action.agentId);
-              if (!agent) break;
-              const player = game.world.players.get(agent.playerId as any);
-              if (!player) break;
-              // destination: {x,y}
-              console.log(
-                `Queued move -> agent ${agent.id} (player ${player.id}) to`,
-                action.destination,
-              );
-              movePlayer(game, now, player, action.destination);
-              break;
-            }
-            case 'activity': {
-              const agent = [...game.world.agents.values()].find((a) => a.id === action.agentId);
-              if (!agent) break;
-              const player = game.world.players.get(agent.playerId as any);
-              if (!player) break;
-              console.log(
-                `Queued activity -> agent ${agent.id} (player ${player.id}):`,
-                action.activity,
-              );
-              player.activity = action.activity;
-              break;
-            }
-            case 'invite': {
-              const agent = [...game.world.agents.values()].find((a) => a.id === action.agentId);
-              if (!agent) break;
-              const player = game.world.players.get(agent.playerId as any);
-              const invitee = game.world.players.get(action.inviteeId as any);
-              if (!player || !invitee) break;
-              console.log(
-                `Queued invite -> agent ${agent.id} (player ${player.id}) invites ${invitee.id}`,
-              );
-              Conversation.start(game, now, player, invitee);
-              break;
-            }
-            case 'trade': {
-              // trade action expected fields:
-              // { agentId, pricewood, tradewood, pricefood, tradefood }
-              try {
-                const agent = [...game.world.agents.values()].find((a) => a.id === action.agentId);
-                if (!agent) break;
-                const player = game.world.players.get(agent.playerId as any);
-                if (!player) break;
+          const action = tradeAction;
+           // trade action expected fields:
+           // { agentId, pricewood, tradewood, pricefood, tradefood }
+           const agent = [...game.world.agents.values()].find((a) => a.id === action.agentId);
+           if (agent) {
+             const player = game.world.players.get(agent.playerId as any);
+             if (player) {
                 // find other participant in this conversation
                 const participantIds = [...this.participants.keys()];
                 const otherPlayerId = participantIds.find((id) => id !== player.id);
-                if (!otherPlayerId) break;
-                const otherAgent = [...game.world.agents.values()].find(
-                  (a) => a.playerId === otherPlayerId,
-                );
-                if (!otherAgent) {
-                  console.log(`Queued trade: other participant is not an agent for conversation ${this.id}`);
-                  break;
+                if (otherPlayerId) {
+                   const otherAgent = [...game.world.agents.values()].find(
+                     (a) => a.playerId === otherPlayerId,
+                   );
+                   if (otherAgent) {
+                     // Transaction execution logic
+                     const priceWood = Math.abs(Number(action.pricewood || 0));
+                     let tradeWood = Number(action.tradewood || 0);
+                     const priceFood = Math.abs(Number(action.pricefood || 0));
+                     let tradeFood = Number(action.tradefood || 0);
+
+                     // Helper to perform a single resource trade
+                     const doResourceTrade = (
+                       resName: 'wood' | 'food',
+                       price: number,
+                       amount: number,
+                     ) => {
+                       if (amount === 0) return { executed: 0, goldExchanged: 0 };
+                       const buyer = amount > 0 ? agent : otherAgent;
+                       const seller = amount > 0 ? otherAgent : agent;
+                       const qty = Math.abs(amount);
+                       // available quantity from seller
+                       const sellerQty = (seller as any)[resName] ?? 0;
+                       let executedQty = Math.min(qty, sellerQty);
+                       // check buyer can pay
+                       const cost = price * executedQty;
+                       if (price > 0) {
+                         const buyerGold = (buyer as any).gold ?? 0;
+                         if (buyerGold < cost) {
+                           // reduce executedQty to what buyer can afford
+                           executedQty = Math.min(executedQty, Math.floor(buyerGold / price));
+                         }
+                       }
+                       if (executedQty <= 0) return { executed: 0, goldExchanged: 0 };
+                       // apply changes
+                       (buyer as any)[resName] = ((buyer as any)[resName] ?? 0) + executedQty;
+                       (seller as any)[resName] = Math.max(0, ((seller as any)[resName] ?? 0) - executedQty);
+                       const goldFlow = price * executedQty;
+                       (buyer as any).gold = ((buyer as any).gold ?? 0) - goldFlow;
+                       (seller as any).gold = ((seller as any).gold ?? 0) + goldFlow;
+                       return { executed: amount > 0 ? executedQty : -executedQty, goldExchanged: goldFlow };
+                     };
+
+                     const woodResult = doResourceTrade('wood', priceWood, tradeWood);
+                     const foodResult = doResourceTrade('food', priceFood, tradeFood);
+
+                     // Record trade price snapshots
+                     try {
+                       const nowTs = Date.now();
+                       if (Math.abs(woodResult.executed) > 0 || Math.abs(foodResult.executed) > 0) {
+                         const snapshot = { woodPrice: priceWood, foodPrice: priceFood, timestamp: nowTs };
+                         const other = otherAgent;
+                         (agent as any).prevTrade = (agent as any).lastTrade;
+                         (agent as any).lastTrade = snapshot;
+                         (other as any).prevTrade = (other as any).lastTrade;
+                         (other as any).lastTrade = snapshot;
+                       }
+                     } catch (err) {
+                       console.error('Error recording trade snapshots', err);
+                     }
+                     console.log(
+                       `Queued trade executed in conversation ${this.id}: agent ${agent.id} wood ${woodResult.executed}, food ${foodResult.executed}`,
+                     );
+                   }
                 }
-
-                // Prices should always be positive; quantities may be negative.
-                const priceWood = Math.abs(Number(action.pricewood || 0));
-                let tradeWood = Number(action.tradewood || 0);
-                const priceFood = Math.abs(Number(action.pricefood || 0));
-                let tradeFood = Number(action.tradefood || 0);
-
-                // Helper to perform a single resource trade from perspective of `agent`.
-                const doResourceTrade = (
-                  resName: 'wood' | 'food',
-                  price: number,
-                  amount: number,
-                ) => {
-                  if (amount === 0) return { executed: 0, goldExchanged: 0 };
-                  const buyer = amount > 0 ? agent : otherAgent;
-                  const seller = amount > 0 ? otherAgent : agent;
-                  const qty = Math.abs(amount);
-                  // available quantity from seller
-                  const sellerQty = (seller as any)[resName] ?? 0;
-                  let executedQty = Math.min(qty, sellerQty);
-                  // check buyer can pay
-                  const cost = price * executedQty;
-                  if (price > 0) {
-                    const buyerGold = (buyer as any).gold ?? 0;
-                    if (buyerGold < cost) {
-                      // reduce executedQty to what buyer can afford
-                      executedQty = Math.min(executedQty, Math.floor(buyerGold / price));
-                    }
-                  }
-                  if (executedQty <= 0) return { executed: 0, goldExchanged: 0 };
-                  // apply changes: buyer gains resource, seller loses resource, gold flows seller receives gold
-                  (buyer as any)[resName] = ((buyer as any)[resName] ?? 0) + (amount > 0 ? executedQty : -executedQty);
-                  (seller as any)[resName] = Math.max(0, ((seller as any)[resName] ?? 0) - executedQty);
-                  const goldFlow = price * executedQty;
-                  (buyer as any).gold = ((buyer as any).gold ?? 0) - goldFlow;
-                  (seller as any).gold = ((seller as any).gold ?? 0) + goldFlow;
-                  return { executed: amount > 0 ? executedQty : -executedQty, goldExchanged: goldFlow };
-                };
-
-                const woodResult = doResourceTrade('wood', priceWood, tradeWood);
-                const foodResult = doResourceTrade('food', priceFood, tradeFood);
-
-                // Record trade price snapshots for both agents if any execution happened.
-                try {
-                  const nowTs = Date.now();
-                  if (Math.abs(woodResult.executed) > 0 || Math.abs(foodResult.executed) > 0) {
-                    const snapshot = { woodPrice: priceWood, foodPrice: priceFood, timestamp: nowTs };
-                    const other = otherAgent;
-                    // shift last to prev for agent
-                    (agent as any).prevTrade = (agent as any).lastTrade;
-                    (agent as any).lastTrade = snapshot;
-                    // shift for other agent
-                    (other as any).prevTrade = (other as any).lastTrade;
-                    (other as any).lastTrade = snapshot;
-                  }
-                } catch (err) {
-                  console.error('Error recording trade snapshots', err);
-                }
-
-                console.log(
-                  `Queued trade executed in conversation ${this.id}: agent ${agent.id} wood ${woodResult.executed}, food ${foodResult.executed}`,
-                );
-              } catch (err) {
-                console.error('Error executing queued trade action', err, action);
-              }
-              break;
-            }
-            default:
-              console.warn('Unknown queued action type', action);
-          }
-        } catch (e) {
-          console.error('Error executing queued action', e);
+             }
+           }
+        } catch(e) {
+          console.error('Error executing trade action', e);
         }
       }
     }
