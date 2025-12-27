@@ -8,6 +8,7 @@ import { point } from '../util/types';
 import { Descriptions } from '../../data/characters';
 import { AgentDescription } from './agentDescription';
 import { Agent } from './agent';
+import { ACTIVITY_COOLDOWN } from '../constants';
 
 export const agentInputs = {
   finishRememberConversation: inputHandler({
@@ -126,6 +127,9 @@ export const agentInputs = {
       }
       if (args.activity) {
         player.activity = args.activity;
+        // Throttle next activity: 1 minutes base + up to 1 minute random
+        const THROTTLE = 1 * 60 * 1000 + Math.floor(Math.random() * 60 * 1000);
+        agent.nextActivity = args.activity.until + ACTIVITY_COOLDOWN + THROTTLE;
       }
       return null;
     },

@@ -166,9 +166,14 @@ export const agentDoSomething = internalAction({
     const recentlyAttemptedInvite =
       agent.lastInviteAttempt && now < agent.lastInviteAttempt + CONVERSATION_COOLDOWN;
     const recentActivity = player.activity && now < player.activity.until + ACTIVITY_COOLDOWN;
+    const nextActivityLimit = agent.nextActivity && now < agent.nextActivity;
+
     // Decide whether to do an activity or wander somewhere.
     if (!player.pathfinding) {
-      if (recentActivity || justLeftConversation) {
+      if (recentActivity || justLeftConversation || nextActivityLimit) {
+        if (nextActivityLimit) {
+            console.log(`Agent ${agent.id} throttling activity until ${agent.nextActivity} (now: ${now})`);
+        }
         await sleep(Math.random() * 1000);
         await ctx.runMutation(api.aiTown.main.sendInput, {
           worldId: args.worldId,
@@ -340,6 +345,7 @@ async function chooseActivity(worldId: Id<'worlds'>, agent: any, playerName: str
         const found = valid.find((a) => a.description === args.activityName);
         if (found) {
           chosenActivity = found;
+          console.log(`Agent ${playerName} chose activity: ${found.description}`);
           return `You decided to start: ${args.activityName}`;
         }
         return `Activity not found: ${args.activityName}`;
@@ -365,7 +371,9 @@ async function chooseActivity(worldId: Id<'worlds'>, agent: any, playerName: str
 
   // If LLM failed or didn't choose, fallback to random
   if (!chosenActivity) {
-    return valid[Math.floor(Math.random() * valid.length)];
+    chosenActivity = valid[Math.floor(Math.random() * valid.length)];
+    console.log(`Agent ${playerName} chose random activity: ${chosenActivity.description}`);
+    return chosenActivity;
   }
   return chosenActivity;
 }

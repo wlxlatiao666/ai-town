@@ -194,13 +194,14 @@ export async function leaveConversationMessage(
 
 function agentPrompts(
   otherPlayer: { name: string },
-  agent: { identity: string; plan: string } | null,
+  agent: { identity: string; plan: string; gold?: number; wood?: number; food?: number } | null,
   otherAgent: { identity: string; plan: string } | null,
 ): string[] {
   const prompt = [];
   if (agent) {
     prompt.push(`About you: ${agent.identity}`);
     prompt.push(`Your life goals: ${agent.plan}`);
+    prompt.push(`Your current resources: Gold: ${agent.gold ?? 0}, Wood: ${agent.wood ?? 0}, Food: ${agent.food ?? 0}.`);
     prompt.push(
       `IMPORTANT: The ONLY goal of this conversation is to TRADE resources for gold. Do not talk about anything else.`,
     );

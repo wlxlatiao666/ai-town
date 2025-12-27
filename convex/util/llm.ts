@@ -454,7 +454,7 @@ export async function chatCompletionWithFunctions(
     }));
     body.tool_choice = 'auto';
   }
-  console.log(body);
+  // console.log(body);
 
   const {
     result: content,
@@ -481,12 +481,12 @@ export async function chatCompletionWithFunctions(
         error: new Error(`Chat completion failed with code ${result.status}: ${error}`),
       };
     }
-    console.log('stream:', body.stream);
+    // console.log('stream:', body.stream);
     if (body.stream) {
       return new ChatCompletionContent(result.body!, stopWords);
     } else {
       const json = (await result.json()) as CreateChatCompletionResponse;
-      console.log('json:', json);
+      // console.log('json:', json);
       const choice = json.choices[0];
       const message = choice.message!;
 
@@ -517,12 +517,12 @@ export async function chatCompletionWithFunctions(
       };
 
       if (message.tool_calls && message.tool_calls.length > 0) {
-        console.log(`tool_calls: ${JSON.stringify(message.tool_calls)}`);
+        // console.log(`tool_calls: ${JSON.stringify(message.tool_calls)}`);
         for (const toolCall of message.tool_calls) {
           await executeTool(toolCall.function.name, toolCall.function.arguments);
         }
       } else if (message.function_call) {
-        console.log(`function_call: ${JSON.stringify(message.function_call)}`);
+        // console.log(`function_call: ${JSON.stringify(message.function_call)}`);
         await executeTool(message.function_call.name, message.function_call.arguments);
       }
 

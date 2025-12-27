@@ -31,6 +31,7 @@ export class Agent {
   lastConversation?: number;
   lastInviteAttempt?: number;
   nextIndependentThought?: number;
+  nextActivity?: number;
   gold: number;
   wood: number;
   food: number;
@@ -49,7 +50,7 @@ export class Agent {
   };
 
   constructor(serialized: SerializedAgent) {
-    const { id, lastConversation, lastInviteAttempt, nextIndependentThought, inProgressOperation } =
+    const { id, lastConversation, lastInviteAttempt, nextIndependentThought, nextActivity, inProgressOperation } =
       serialized;
     const playerId = parseGameId('players', serialized.playerId);
     this.id = parseGameId('agents', id);
@@ -70,6 +71,7 @@ export class Agent {
     this.lastConversation = lastConversation;
     this.lastInviteAttempt = lastInviteAttempt;
     this.nextIndependentThought = nextIndependentThought;
+    this.nextActivity = nextActivity;
     this.inProgressOperation = inProgressOperation;
   }
 
@@ -337,6 +339,7 @@ export class Agent {
       woodConsumption: this.woodConsumption,
       foodConsumption: this.foodConsumption,
       lastConsumption: this.lastConsumption,
+      nextActivity: this.nextActivity,
     };
   }
 }
@@ -356,6 +359,7 @@ export const serializedAgent = {
   lastConversation: v.optional(v.number()),
   lastInviteAttempt: v.optional(v.number()),
   nextIndependentThought: v.optional(v.number()),
+  nextActivity: v.optional(v.number()),
   inProgressOperation: v.optional(
     v.object({
       name: v.string(),

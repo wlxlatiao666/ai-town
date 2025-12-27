@@ -268,42 +268,54 @@ export class Conversation {
                    );
                    if (otherAgent) {
                      // Transaction execution logic
+                     console.log(`[TradeStart] Conversation ${this.id}: Agent ${agent.id} proposed trade. Processing...`);
                      const priceWood = Math.abs(Number(action.pricewood || 0));
                      let tradeWood = Number(action.tradewood || 0);
                      const priceFood = Math.abs(Number(action.pricefood || 0));
                      let tradeFood = Number(action.tradefood || 0);
 
-                     // Helper to perform a single resource trade
-                     const doResourceTrade = (
-                       resName: 'wood' | 'food',
-                       price: number,
-                       amount: number,
-                     ) => {
-                       if (amount === 0) return { executed: 0, goldExchanged: 0 };
-                       const buyer = amount > 0 ? agent : otherAgent;
-                       const seller = amount > 0 ? otherAgent : agent;
-                       const qty = Math.abs(amount);
-                       // available quantity from seller
-                       const sellerQty = (seller as any)[resName] ?? 0;
-                       let executedQty = Math.min(qty, sellerQty);
-                       // check buyer can pay
-                       const cost = price * executedQty;
-                       if (price > 0) {
-                         const buyerGold = (buyer as any).gold ?? 0;
-                         if (buyerGold < cost) {
-                           // reduce executedQty to what buyer can afford
-                           executedQty = Math.min(executedQty, Math.floor(buyerGold / price));
+                      // Helper to perform a single resource trade
+                      const doResourceTrade = (
+                        resName: 'wood' | 'food',
+                        price: number,
+                        amount: number,
+                      ) => {
+                        if (amount === 0) return { executed: 0, goldExchanged: 0 };
+                        const buyer = amount > 0 ? agent : otherAgent;
+                        const seller = amount > 0 ? otherAgent : agent;
+                        const qty = Math.abs(amount);
+                        // available quantity from seller
+                        const sellerQty = (seller as any)[resName] ?? 0;
+                        let executedQty = Math.min(qty, sellerQty);
+                        
+                        // check buyer can pay
+                        if (price > 0) {
+                          const cost = price * executedQty;
+                          const buyerGold = (buyer as any).gold ?? 0;
+                          if (buyerGold < cost) {
+                             executedQty = Math.min(executedQty, Math.floor(buyerGold / price));
+                          }
+                        }
+
+                        if (executedQty < qty) {
+                            console.log(`[Trade] ${resName} clamped: requested ${qty}, available/affordable ${executedQty}`);
+                        }
+
+                        if (executedQty <= 0) return { executed: 0, goldExchanged: 0 };
+                        // apply changes
+                        (buyer as any)[resName] = ((buyer as any)[resName] ?? 0) + executedQty;
+                        (seller as any)[resName] = Math.max(0, ((seller as any)[resName] ?? 0) - executedQty);
+                        const goldFlow = price * executedQty;
+                        (buyer as any).gold = ((buyer as any).gold ?? 0) - goldFlow;
+                        (seller as any).gold = ((seller as any).gold ?? 0) + goldFlow;
+                        
+                        // Verify non-negative
+                         if ((buyer as any).gold < 0 || (seller as any).gold < 0 || (buyer as any)[resName] < 0 || (seller as any)[resName] < 0) {
+                             console.error(`[Trade] CRITICAL ERROR: Negative resources! Buyer Gold: ${(buyer as any).gold}, Seller Gold: ${(seller as any).gold}`);
                          }
-                       }
-                       if (executedQty <= 0) return { executed: 0, goldExchanged: 0 };
-                       // apply changes
-                       (buyer as any)[resName] = ((buyer as any)[resName] ?? 0) + executedQty;
-                       (seller as any)[resName] = Math.max(0, ((seller as any)[resName] ?? 0) - executedQty);
-                       const goldFlow = price * executedQty;
-                       (buyer as any).gold = ((buyer as any).gold ?? 0) - goldFlow;
-                       (seller as any).gold = ((seller as any).gold ?? 0) + goldFlow;
-                       return { executed: amount > 0 ? executedQty : -executedQty, goldExchanged: goldFlow };
-                     };
+
+                        return { executed: amount > 0 ? executedQty : -executedQty, goldExchanged: goldFlow };
+                      };
 
                      const woodResult = doResourceTrade('wood', priceWood, tradeWood);
                      const foodResult = doResourceTrade('food', priceFood, tradeFood);
