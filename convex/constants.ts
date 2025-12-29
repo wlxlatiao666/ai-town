@@ -69,8 +69,7 @@ export const HUMAN_IDLE_TOO_LONG = 5 * 60 * 1000;
 
 export const ACTIVITIES = [
   { description: 'daydreaming', emoji: '🤔', duration: 60_000, gold: 0, wood: 0, food: 0 },
-  { description: 'having fun', emoji: '🎉', duration: 60_000, gold: -3, wood: 0, food: 0 },
-  { description: 'mining', emoji: '⛏️', duration: 60_000, gold: 1, wood: 0, food: 0 },
+  { description: 'having fun', emoji: '🎉', duration: 60_000, gold: -10, wood: 0, food: 0 },
   { description: 'fishing', emoji: '🎣', duration: 60_000, gold: 0, wood: 0, food: 3 },
   { description: 'chopping wood', emoji: '🪓', duration: 60_000, gold: 0, wood: 3, food: 0 },
 ];

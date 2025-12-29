@@ -194,7 +194,7 @@ export async function leaveConversationMessage(
 
 function agentPrompts(
   otherPlayer: { name: string },
-  agent: { identity: string; plan: string; gold?: number; wood?: number; food?: number } | null,
+  agent: { identity: string; plan: string; gold?: number; wood?: number; food?: number; lastTrade?: any } | null,
   otherAgent: { identity: string; plan: string } | null,
 ): string[] {
   const prompt = [];
@@ -202,11 +202,19 @@ function agentPrompts(
     prompt.push(`About you: ${agent.identity}`);
     prompt.push(`Your life goals: ${agent.plan}`);
     prompt.push(`Your current resources: Gold: ${agent.gold ?? 0}, Wood: ${agent.wood ?? 0}, Food: ${agent.food ?? 0}.`);
+    
+    // Add market price info
+    const lastWoodPrice = (agent.lastTrade as any)?.woodPrice ?? 2;
+    const lastFoodPrice = (agent.lastTrade as any)?.foodPrice ?? 2;
+    prompt.push(`Recent Market Prices: Wood = ${lastWoodPrice} Gold, Food = ${lastFoodPrice} Gold.`);
+
     prompt.push(
-      `IMPORTANT: The ONLY goal of this conversation is to TRADE resources for gold. Do not talk about anything else.`,
-    );
-    prompt.push(
-      `You can ONLY use the 'agent_trade' tool if the other person has EXPLICITLY AGREED to the trade terms.`,
+      `IMPORTANT: You are in a SURVIVAL MODE. You die if Wood or Food < 0.`,
+      `The ONLY goal of this conversation is to TRADE resources (Wood/Food) for GOLD.`,
+      `RULES:`,
+      `1. You CANNOT trade Wood for Food directly. You must use GOLD as currency.`,
+      `2. You can ONLY use the 'agent_trade' tool if the other person has EXPLICITLY AGREED to the trade terms.`,
+      `3. If you are poor, sell resources for Gold. If you are rich, buy resources with Gold.`,
     );
     prompt.push(
       `When you have agreed on a trade, use the 'agent_trade' tool to commit it. Then say goodbye.`,

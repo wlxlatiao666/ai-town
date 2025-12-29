@@ -193,6 +193,11 @@ export const agentDoSomething = internalAction({
         });
         const playerName = playerDesc ? playerDesc.name : 'Agent';
         const playerIdentity = playerDesc ? playerDesc.description : 'You are a villager.';
+        if (agent.isDead) {
+            console.log(`Agent ${agent.id} is dead. Skipping activity.`);
+            return;
+        }
+
         const chosen = await chooseActivity(args.worldId, agent, playerName, playerIdentity);
         if (!chosen) {
           // No valid activities — wander instead.
@@ -213,10 +218,15 @@ export const agentDoSomething = internalAction({
         // Apply trait modifiers
         if (playerDesc) {
            if (playerDesc.name === 'Lucas' && activity.description === 'chopping wood') {
-             activity.wood = (activity.wood ?? 0) * 2;
+             activity.wood = (activity.wood ?? 0) * 2; // Lucas is very efficient at wood
            }
            if (playerDesc.name === 'Finn' && activity.description === 'fishing') {
-             activity.food = (activity.food ?? 0) * 2;
+             activity.food = (activity.food ?? 0) * 2; // Finn is expert fisher
+           }
+           if (playerDesc.name === 'Alex') {
+                // Alex is slightly better than average at everything
+                if (activity.wood) activity.wood = Math.ceil(activity.wood * 1);
+                if (activity.food) activity.food = Math.ceil(activity.food * 1);
            }
            if (playerDesc.name === 'Tycoon') {
              // Work activities are less efficient for Tycoon (slower or less output)

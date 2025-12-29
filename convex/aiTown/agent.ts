@@ -32,6 +32,7 @@ export class Agent {
   lastInviteAttempt?: number;
   nextIndependentThought?: number;
   nextActivity?: number;
+  isDead?: boolean;
   gold: number;
   wood: number;
   food: number;
@@ -50,20 +51,21 @@ export class Agent {
   };
 
   constructor(serialized: SerializedAgent) {
-    const { id, lastConversation, lastInviteAttempt, nextIndependentThought, nextActivity, inProgressOperation } =
+    const { id, lastConversation, lastInviteAttempt, nextIndependentThought, nextActivity, inProgressOperation, isDead } =
       serialized;
     const playerId = parseGameId('players', serialized.playerId);
     this.id = parseGameId('agents', id);
     this.playerId = playerId;
+    this.isDead = isDead ?? false;
     this.gold = serialized.gold ?? 10;
     this.wood = serialized.wood ?? 10;
     this.food = serialized.food ?? 10;
     this.woodConsumption = (serialized as any).woodConsumption ?? 1;
     this.foodConsumption = (serialized as any).foodConsumption ?? 1;
     this.lastConsumption = (serialized as any).lastConsumption;
-    // Default recent trade snapshots to price=1 so UI shows initial values.
-    this.lastTrade = (serialized as any).lastTrade ?? { woodPrice: 1, foodPrice: 1, timestamp: Date.now() };
-    this.prevTrade = (serialized as any).prevTrade ?? { woodPrice: 1, foodPrice: 1, timestamp: Date.now() };
+    // Default recent trade snapshots to price=2 so UI shows initial values.
+    this.lastTrade = (serialized as any).lastTrade ?? { woodPrice: 2, foodPrice: 2, timestamp: Date.now() };
+    this.prevTrade = (serialized as any).prevTrade ?? { woodPrice: 2, foodPrice: 2, timestamp: Date.now() };
     this.toRemember =
       serialized.toRemember !== undefined
         ? parseGameId('conversations', serialized.toRemember)
@@ -77,33 +79,39 @@ export class Agent {
 
   tick(game: Game, now: number) {
     // Resource consumption: consume wood/food every 60s.
+    // Resource consumption: consume wood/food every 60s.
     try {
       const RESOURCE_CONSUMPTION_INTERVAL = 60_000;
+      // const RESOURCE_CONSUMPTION_INTERVAL = 10_000; // fast decay for debugging
       if (!this.lastConsumption) {
         this.lastConsumption = now;
       } else if (now >= this.lastConsumption + RESOURCE_CONSUMPTION_INTERVAL) {
         const times = Math.floor((now - this.lastConsumption) / RESOURCE_CONSUMPTION_INTERVAL);
         const totalWood = (this.woodConsumption ?? 0) * times;
         const totalFood = (this.foodConsumption ?? 0) * times;
-        // If resources are sufficient, consume; otherwise skip this consumption.
-        if ((this.wood ?? 0) >= totalWood && (this.food ?? 0) >= totalFood) {
-          this.wood = (this.wood ?? 0) - totalWood;
-          this.food = (this.food ?? 0) - totalFood;
-          this.lastConsumption = this.lastConsumption + times * RESOURCE_CONSUMPTION_INTERVAL;
-          console.log(
-            `Agent ${this.id} consumed resources: -${totalWood} wood, -${totalFood} food (now wood=${this.wood}, food=${this.food})`,
-          );
-        } else {
-          // Skip consumption for these intervals and advance lastConsumption so
-          // we don't repeatedly attempt the same missed intervals.
-          console.log(
-            `Agent ${this.id} skipping consumption (insufficient resources): need ${totalWood} wood and ${totalFood} food, have wood=${this.wood}, food=${this.food}`,
-          );
-          this.lastConsumption = this.lastConsumption + times * RESOURCE_CONSUMPTION_INTERVAL;
+        
+        // Strict Survival Mode: Must consume even if it makes resources negative.
+        this.wood = (this.wood ?? 0) - totalWood;
+        this.food = (this.food ?? 0) - totalFood;
+        this.lastConsumption = this.lastConsumption + times * RESOURCE_CONSUMPTION_INTERVAL;
+        
+        console.log(
+            `Agent ${this.id} consumed resources: -${totalWood} wood, -${totalFood} food (now wood=${this.wood}, food=${this.food})`
+        );
+
+        // Death Check
+        if ((this.wood < 0 || this.food < 0) && !this.isDead) {
+             this.isDead = true;
+             console.log(`💀 AGENT DEATH: Agent ${this.id} has died! Wood: ${this.wood}, Food: ${this.food}. R.I.P.`);
         }
       }
     } catch (err) {
       console.error('Error handling resource consumption for agent', this.id, err);
+    }
+    
+    // If dead, do nothing else.
+    if (this.isDead) {
+        return;
     }
     const player = game.world.players.get(this.playerId);
     if (!player) {
@@ -340,6 +348,7 @@ export class Agent {
       foodConsumption: this.foodConsumption,
       lastConsumption: this.lastConsumption,
       nextActivity: this.nextActivity,
+      isDead: this.isDead,
     };
   }
 }
@@ -360,6 +369,7 @@ export const serializedAgent = {
   lastInviteAttempt: v.optional(v.number()),
   nextIndependentThought: v.optional(v.number()),
   nextActivity: v.optional(v.number()),
+  isDead: v.optional(v.boolean()),
   inProgressOperation: v.optional(
     v.object({
       name: v.string(),
