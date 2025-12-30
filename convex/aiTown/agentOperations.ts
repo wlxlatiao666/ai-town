@@ -134,14 +134,14 @@ export const tradeBegin = internalQuery({
     const a2 = agents.find((a: any) => a.playerId === args.otherPlayerId);
     const result = {
       agentA: a1
-        ? { id: a1.id, gold: a1.gold ?? 0, wood: a1.wood ?? 0, food: a1.food ?? 0 }
+        ? { id: a1.id, name: (await ctx.db.query('playerDescriptions').withIndex('worldId', q => q.eq('worldId', args.worldId).eq('playerId', args.playerId)).first())?.name ?? 'Unknown', gold: a1.gold ?? 0, wood: a1.wood ?? 0, food: a1.food ?? 0 }
         : null,
       agentB: a2
-        ? { id: a2.id, gold: a2.gold ?? 0, wood: a2.wood ?? 0, food: a2.food ?? 0 }
+        ? { id: a2.id, name: (await ctx.db.query('playerDescriptions').withIndex('worldId', q => q.eq('worldId', args.worldId).eq('playerId', args.otherPlayerId)).first())?.name ?? 'Unknown', gold: a2.gold ?? 0, wood: a2.wood ?? 0, food: a2.food ?? 0 }
         : null,
     };
     // Optionally log or persist trade-begin event here.
-    console.log('tradeBegin', result);
+    console.log(`tradeBegin: ${result.agentA?.name} (G:${result.agentA?.gold}, W:${result.agentA?.wood}, F:${result.agentA?.food}) <-> ${result.agentB?.name} (G:${result.agentB?.gold}, W:${result.agentB?.wood}, F:${result.agentB?.food})`);
     return result;
   },
 });

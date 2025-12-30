@@ -78,6 +78,11 @@ export class Agent {
   }
 
   tick(game: Game, now: number) {
+    // If dead, do nothing else.
+    if (this.isDead) {
+      return;
+    }
+
     // Resource consumption: consume wood/food every 60s.
     // Resource consumption: consume wood/food every 60s.
     try {
@@ -102,16 +107,19 @@ export class Agent {
         // Death Check
         if ((this.wood < 0 || this.food < 0) && !this.isDead) {
              this.isDead = true;
-             console.log(`💀 AGENT DEATH: Agent ${this.id} has died! Wood: ${this.wood}, Food: ${this.food}. R.I.P.`);
+             const MAX_NAME_ATTEMPTS = 3;
+             let playerName = `Agent ${this.id}`;
+             if (game.playerDescriptions) {
+                const desc = game.playerDescriptions.get(this.playerId);
+                if (desc) {
+                    playerName = desc.name;
+                }
+             }
+             console.log(`💀 AGENT DEATH: ${playerName} has died! Wood: ${this.wood}, Food: ${this.food}. R.I.P.`);
         }
       }
     } catch (err) {
       console.error('Error handling resource consumption for agent', this.id, err);
-    }
-    
-    // If dead, do nothing else.
-    if (this.isDead) {
-        return;
     }
     const player = game.world.players.get(this.playerId);
     if (!player) {
