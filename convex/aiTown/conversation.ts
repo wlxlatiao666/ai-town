@@ -335,7 +335,10 @@ export class Conversation {
                        console.error('Error recording trade snapshots', err);
                      }
                      console.log(
-                       `Queued trade executed in conversation ${this.id}: agent ${agent.id} wood ${woodResult.executed}, food ${foodResult.executed}`,
+                       `💰 TRADE EXECUTED in conversation ${this.id}:\n` +
+                       `   Parties: ${game.playerDescriptions.get(agent.playerId)?.name ?? agent.id} <-> ${game.playerDescriptions.get(otherAgent.playerId)?.name ?? otherAgent.id}\n` +
+                       `   Wood: ${woodResult.executed} units @ ${priceWood} gold/unit (${woodResult.goldExchanged} gold)\n` +
+                       `   Food: ${foodResult.executed} units @ ${priceFood} gold/unit (${foodResult.goldExchanged} gold)`
                      );
                    }
                 }

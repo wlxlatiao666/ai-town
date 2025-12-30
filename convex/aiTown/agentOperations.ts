@@ -121,8 +121,8 @@ export const agentGenerateMessage = internalAction({
 export const tradeBegin = internalQuery({
   args: {
     worldId: v.id('worlds'),
-    playerId: v.id('players'),
-    otherPlayerId: v.id('players'),
+    playerId: playerId,
+    otherPlayerId: playerId,
   },
   handler: async (ctx, args) => {
     const worldDoc = await ctx.db.get(args.worldId);
@@ -368,7 +368,20 @@ async function chooseActivity(worldId: Id<'worlds'>, agent: any, playerName: str
       messages: [
         {
           role: 'system',
-          content: `You are ${playerName}. Identity: ${playerIdentity} Resources: Gold: ${agent.gold ?? 0}, Wood: ${agent.wood ?? 0}, Food: ${agent.food ?? 0}.\nYou are currently idle and need to choose an activity to perform.\nAvailable activities:\n${valid.map((a) => `- ${a.description} (Gold: ${a.gold}, Wood: ${a.wood}, Food: ${a.food})`).join('\n')}\nChoose one activity by its name based on your identity and needs.`,
+          content: `You are ${playerName}. Identity: ${playerIdentity}
+
+⚠️  SURVIVAL WARNING: If your Wood or Food drops below 0, YOU WILL DIE! ⚠️
+
+Current Resources:
+- Gold: ${agent.gold ?? 0}
+- Wood: ${agent.wood ?? 0}
+- Food: ${agent.food ?? 0}
+
+You are currently idle and need to choose an activity to perform.
+Available activities:
+${valid.map((a) => `- ${a.description} (Gold: ${a.gold ?? 0}, Wood: ${a.wood ?? 0}, Food: ${a.food ?? 0})`).join('\n')}
+
+Choose wisely based on your identity, needs, and SURVIVAL! Activities that consume Wood or Food could kill you if your resources are too low.`,
         },
         { role: 'user', content: 'What activity do you choose?' },
       ],
